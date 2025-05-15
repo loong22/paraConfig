@@ -16,4 +16,4 @@ cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release ..
 REM 执行清理操作
 cmake --build . --config Release --target all -j 18 --
 
-echo 清理完成
+echo 生成完成
