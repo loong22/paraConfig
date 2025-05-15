@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/packages",
+                "${workspaceFolder}/packages/nlohmann",
+                "${workspaceFolder}/packages/openmpi-5.0.4/include"
+            ],
+            "defines": [],
+            "compilerPath": "gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}
