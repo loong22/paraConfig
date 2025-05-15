@@ -1,0 +1,19 @@
+# Copyright (c) 2010 Cisco Systems, Inc.  All rights reserved.
+# Copyright (c) 2016      IBM Corporation.  All rights reserved.
+#
+Name: Open MPI
+Description: Portable high-performance MPI implementation
+Version: 5.0.7
+URL: https://www.open-mpi.org/
+#
+prefix=/opt/openmpi-5.0.4
+exec_prefix=${prefix}
+includedir=${prefix}/include
+libdir=${exec_prefix}/lib
+pkgincludedir=${includedir}/openmpi
+
+Libs: -L${libdir} -Wl,-rpath -Wl,${libdir} -Wl,--enable-new-dtags -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi
+Libs.private: -L${libdir} -Wl,-rpath -Wl,${libdir}
+Cflags: -I${includedir} -I${exec_prefix}/lib
+Requires: 
+Requires.private: 
