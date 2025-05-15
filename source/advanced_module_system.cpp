@@ -415,30 +415,41 @@ void saveUsedConfig(const nlohmann::json& moduleConfig,
                     const nlohmann::json& engine,
                     const nlohmann::json& globalParams,
                     const std::string& outputFile) {
-    nlohmann::json usedConfig;
-    usedConfig["config"] = nlohmann::json::object();
+    // 使用nlohmann::ordered_json来保持元素顺序
+    nlohmann::ordered_json usedConfig;
     
-    for (const auto& moduleName : enabledModules) {
-        if (moduleConfig.contains(moduleName)) {
-            usedConfig["config"][moduleName] = moduleConfig[moduleName];
+    // 使用ordered_json来保留配置项的顺序
+    usedConfig["config"] = nlohmann::ordered_json::object();
+    
+    // 先将globalParams按照原始顺序复制到usedConfig中
+    for (auto it = globalParams.begin(); it != globalParams.end(); ++it) {
+        usedConfig["config"][it.key()] = it.value();
+    }
+    
+    // 然后按照moduleConfig中的顺序添加模块特定的配置
+    // 但只添加已启用的模块
+    for (auto it = moduleConfig.begin(); it != moduleConfig.end(); ++it) {
+        const std::string& moduleName = it.key();
+        if (enabledModules.count(moduleName) > 0) {
+            usedConfig["config"][moduleName] = it.value();
         }
     }
     
-    for (auto& [key, value] : globalParams.items()) {
-        usedConfig["config"][key] = value;
-    }
-    
-    usedConfig["registry"] = {{"modules", nlohmann::json::array()}};
+    // 设置engine部分
+    usedConfig["engine"] = engine;
+
+    // 设置registry部分
+    usedConfig["registry"] = {{"modules", nlohmann::ordered_json::array()}};
     for (const auto& moduleName : enabledModules) {
-        nlohmann::json moduleInfo = {
+        // 使用nlohmann::ordered_json代替nlohmann::json
+        nlohmann::ordered_json moduleInfo = {
             {"enabled", true},
-            {"name", moduleName},
+            {"name", moduleName}
         };
         usedConfig["registry"]["modules"].push_back(moduleInfo);
     }
     
-    usedConfig["engine"] = engine;
-    
+    // 写入文件
     std::ofstream file(outputFile);
     if (!file.is_open()) {
         std::cerr << "无法创建配置文件: " << outputFile << std::endl;
