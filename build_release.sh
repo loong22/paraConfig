@@ -10,12 +10,18 @@ fi
 # 进入 build 目录
 cd build
 
-# 运行 CMake 配置
-cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release ..
+# 明确指定使用Unix Makefiles生成器
+echo "使用Unix Makefiles构建工具"
+cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ..
 
 # 执行构建操作
 # 使用系统处理器核心数量作为并行编译的作业数
 CORES=$(nproc)
-cmake --build . --config Release --target all -j $CORES --
 
-echo "生成完成"
+# 使用make命令而不是cmake --build
+if [ -f "Makefile" ]; then
+    make -j $CORES
+    echo "构建完成"
+else
+    echo "Makefile不存在，构建失败"
+fi
