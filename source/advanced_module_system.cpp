@@ -242,6 +242,86 @@ void engineContext::releaseModule(const std::string& name) {
     }
 }
 
+// 根据工厂执行逻辑执行模块
+void engineContext::executeModulesAccordingToFactoryLogic(const std::string& factoryName) {
+    // 获取工厂执行配置
+    auto config = ModuleFactoryCollection::getFactoryExecutionConfig(factoryName);
+    
+    // 获取工厂中的模块
+    auto factory = ModuleFactoryCollection::instance().getFactory(factoryName);
+    auto& moduleCreators = factory->getAllModuleCreators();
+    
+    std::vector<std::string> moduleNames;
+    for (const auto& [name, _] : moduleCreators) {
+        moduleNames.push_back(name);
+    }
+    
+    switch (config.type) {
+        case FactoryExecutionType::CHOOSE_ONE: {
+            // 多选一执行：让用户选择一个模块执行
+            std::cout << "请选择要执行的模块 (从工厂 " << factoryName << "):" << std::endl;
+            for (size_t i = 0; i < moduleNames.size(); ++i) {
+                std::cout << i + 1 << ". " << moduleNames[i] << std::endl;
+            }
+            
+            size_t choice = 0;
+            std::cin >> choice;
+            
+            if (choice > 0 && choice <= moduleNames.size()) {
+                std::string selectedModule = moduleNames[choice - 1];
+                
+                // 执行选中的模块
+                void* moduleInstance = createModule(selectedModule, getParameter<nlohmann::json>(selectedModule));
+                initializeModule(selectedModule);
+                executeModule(selectedModule);
+                releaseModule(selectedModule);
+            }
+            break;
+        }
+        
+        case FactoryExecutionType::SEQUENTIAL_AND_CHOOSE: {
+            // 修改为：按顺序执行所有模块
+            std::cout << "按顺序执行工厂 " << factoryName << " 中的所有模块" << std::endl;
+            
+            // 使用工厂中的所有模块按顺序执行
+            for (const auto& moduleName : moduleNames) {
+                std::cout << "执行模块: " << moduleName << std::endl;
+                
+                // 执行当前模块
+                void* moduleInstance = createModule(moduleName, getParameter<nlohmann::json>(moduleName));
+                initializeModule(moduleName);
+                executeModule(moduleName);
+                releaseModule(moduleName);
+            }
+            break;
+        }
+        
+        default: {
+            // 未知执行类型，默认使用CHOOSE_ONE逻辑
+            std::cerr << "警告: 工厂 '" << factoryName << "' 使用了未知的执行类型，将使用CHOOSE_ONE逻辑" << std::endl;
+            // 复制CHOOSE_ONE的执行逻辑
+            std::cout << "请选择要执行的模块 (从工厂 " << factoryName << "):" << std::endl;
+            for (size_t i = 0; i < moduleNames.size(); ++i) {
+                std::cout << i + 1 << ". " << moduleNames[i] << std::endl;
+            }
+            
+            size_t choice = 0;
+            std::cin >> choice;
+            
+            if (choice > 0 && choice <= moduleNames.size()) {
+                std::string selectedModule = moduleNames[choice - 1];
+                
+                // 执行选中的模块
+                void* moduleInstance = createModule(selectedModule, getParameter<nlohmann::json>(selectedModule));
+                initializeModule(selectedModule);
+                executeModule(selectedModule);
+                releaseModule(selectedModule);
+            }
+            break;
+        }
+    }
+}
+
 // Nestedengine method definitions
 Nestedengine::Nestedengine(AdvancedRegistry& reg) : registry_(reg) {}
 
@@ -294,7 +374,7 @@ void Nestedengine::executeengine(const std::string& name, std::shared_ptr<engine
         auto& allModuleCreators = factory->getAllModuleCreators();
         
         // 创建允许访问的模块集合
-        std::unordered_set<std::string> allowedModules;
+        std::unordered_set<std::string> allowedModules; //在main.cpp中检测，把验证检测模块单独放出来。
         for (const auto& [moduleName, _] : allModuleCreators) {
             allowedModules.insert(moduleName);
         }
@@ -380,62 +460,66 @@ nlohmann::json createengineInfo() {
     nlohmann::json engineInfo;
     engineInfo["enginePool"] = nlohmann::json::array();
     
-    nlohmann::json sub_engine1;
-    sub_engine1["name"] = "sub_engine1";
-    sub_engine1["description"] = "示例子引擎1-1";
-    sub_engine1["enabled"] = true;
-    sub_engine1["modules"] = nlohmann::json::array(); // 修改为数组而非对象
-    sub_engine1["modules"].push_back({
-        {"name", "LaminarSolverEuler"},
+    // PreGrid引擎
+    nlohmann::json preGridEngine;
+    preGridEngine["name"] = "PreGrid";
+    preGridEngine["description"] = "网格预处理引擎";
+    preGridEngine["enabled"] = true;
+    preGridEngine["modules"] = nlohmann::json::array();
+    preGridEngine["modules"].push_back({
+        {"name", "PreCGNS"},
+        {"enabled", true}
+    });
+    preGridEngine["modules"].push_back({
+        {"name", "PrePlot3D"},
         {"enabled", false}
     });
     
-    // 引擎1
-    nlohmann::json engine1;
-    engine1["name"] = "engine1";
-    engine1["description"] = "子引擎1";
-    engine1["enabled"] = true;
-    //engine1["modules"] = nlohmann::json::array(); // 修改为数组
-    engine1["subenginePool"] = {"sub_engine1"};
+    // Solve引擎
+    nlohmann::json solveEngine;
+    solveEngine["name"] = "Solve";
+    solveEngine["description"] = "求解引擎";
+    solveEngine["enabled"] = true;
+    solveEngine["modules"] = nlohmann::json::array();
+    solveEngine["modules"].push_back({
+        {"name", "EulerSolver"},
+        {"enabled", true}
+    });
+    solveEngine["modules"].push_back({
+        {"name", "SASolver"},
+        {"enabled", true}
+    });
+    solveEngine["modules"].push_back({
+        {"name", "SSTSolver"},
+        {"enabled", false}
+    });
     
-    // 引擎2
-    nlohmann::json engine2;
-    engine2["name"] = "engine2";
-    engine2["description"] = "子引擎2";
-    engine2["enabled"] = true;
-    engine2["modules"] = nlohmann::json::array(); // 修改为数组
-    engine2["modules"].push_back({
-        {"name", "FluidSolver"},
+    // Post引擎
+    nlohmann::json postEngine;
+    postEngine["name"] = "Post";
+    postEngine["description"] = "后处理引擎";
+    postEngine["enabled"] = true;
+    postEngine["modules"] = nlohmann::json::array();
+    postEngine["modules"].push_back({
+        {"name", "PostCGNS"},
+        {"enabled", true}
+    });
+    postEngine["modules"].push_back({
+        {"name", "PostPlot3D"},
         {"enabled", true}
     });
     
-    // 引擎3
-    nlohmann::json engine3;
-    engine3["name"] = "engine3";
-    engine3["description"] = "子引擎3";
-    engine3["enabled"] = true;
-    engine3["modules"] = nlohmann::json::array(); // 修改为数组
-    engine3["modules"].push_back({
-        {"name", "ThermalSolver"},
-        {"enabled", true}
-    });
-
-    engine3["modules"].push_back({
-        {"name", "TurbulenceSolverSA"},
-        {"enabled", true}
-    });
+    // 主引擎
+    nlohmann::json mainEngine;
+    mainEngine["name"] = "mainProcess";
+    mainEngine["description"] = "总控制引擎";
+    mainEngine["enabled"] = true;
+    mainEngine["subenginePool"] = {"PreGrid", "Solve", "Post"};
     
-    nlohmann::json mainengine;
-    mainengine["name"] = "mainProcess";
-    mainengine["description"] = "总控制引擎";
-    mainengine["enabled"] = true;
-    mainengine["subenginePool"] = {"engine1", "engine2", "engine3"};
-    
-    engineInfo["enginePool"].push_back(sub_engine1);
-    engineInfo["enginePool"].push_back(engine1);
-    engineInfo["enginePool"].push_back(engine2);
-    engineInfo["enginePool"].push_back(engine3);
-    engineInfo["enginePool"].push_back(mainengine);
+    engineInfo["enginePool"].push_back(preGridEngine);
+    engineInfo["enginePool"].push_back(solveEngine);
+    engineInfo["enginePool"].push_back(postEngine);
+    engineInfo["enginePool"].push_back(mainEngine);
     
     return engineInfo;
 }
@@ -513,49 +597,83 @@ void getConfigInfo(std::shared_ptr<ModuleSystem::AdvancedRegistry> registry,
     // 添加模块工厂定义
     nlohmann::json moduleFactories = nlohmann::json::array();
     
-    // 创建两个示例工厂
-    nlohmann::json physicsFactory;
-    physicsFactory["name"] = "physics_factory";
-    physicsFactory["modules"] = nlohmann::json::array();
+    // 创建三个工厂，分别对应不同的模块类型和引擎
+    // 1. 预处理工厂 - 对应 PreGrid 引擎
+    nlohmann::json preprocessingFactory;
+    preprocessingFactory["name"] = "preprocessing_factory";
+    preprocessingFactory["modules"] = nlohmann::json::array();
+    preprocessingFactory["executionType"] = "CHOOSE_ONE";
     
+    preprocessingFactory["modules"].push_back({
+         {"name", "PreCGNS"},
+         {"enabled", true}});
+
+    preprocessingFactory["modules"].push_back({
+        {"name", "PrePlot3D"},
+        {"enabled", true}});
+    
+    // 2. 求解工厂 - 对应 Solve 引擎（修改：包含所有求解器模块）
+    nlohmann::json solverFactory;
+    solverFactory["name"] = "solver_factory";
+    solverFactory["modules"] = nlohmann::json::array();
+    solverFactory["executionType"] = "CHOOSE_ONE";
+    
+    // 添加所有与求解相关的模块到 solver_factory
+    solverFactory["modules"].push_back({
+         {"name", "EulerSolver"},
+         {"enabled", true}});
+    
+    solverFactory["modules"].push_back({
+         {"name", "SASolver"},
+         {"enabled", true}});
+
+    solverFactory["modules"].push_back({
+        {"name", "SSTSolver"},
+        {"enabled", true}});
+    
+    // 3. 不再单独使用turbulenceFactory（或将其用于其他用途）
     nlohmann::json turbulenceFactory;
     turbulenceFactory["name"] = "turbulence_factory";
     turbulenceFactory["modules"] = nlohmann::json::array();
+    turbulenceFactory["executionType"] = "CHOOSE_ONE";
+    
+    // 可以将一些模块保留在turbulence_factory中用于其他用途
+    
+    // 4. 后处理工厂 - 对应 Post 引擎
+    nlohmann::json postFactory;
+    postFactory["name"] = "post_factory";
+    postFactory["modules"] = nlohmann::json::array();
+    postFactory["executionType"] = "CHOOSE_ONE";
 
-    physicsFactory["modules"].push_back({
-                 {"name", "TurbulenceSolverSA"},
-                 {"enabled", true}});
+    postFactory["modules"].push_back({
+         {"name", "PostCGNS"},
+         {"enabled", true}});
 
-    physicsFactory["modules"].push_back({
-                {"name", "ThermalSolver"},
-                {"enabled", true}});
+    postFactory["modules"].push_back({
+        {"name", "PostPlot3D"},
+        {"enabled", true}});
 
-    turbulenceFactory["modules"].push_back({
-                 {"name", "LaminarSolverEuler"},
-                 {"enabled", true}});
-
-    turbulenceFactory["modules"].push_back({
-                {"name", "FluidSolver"},
-                {"enabled", true}});    
-
-     // 添加工厂到配置
-     moduleFactories.push_back(physicsFactory);
-     moduleFactories.push_back(turbulenceFactory);
-     configInfo["moduleFactories"] = moduleFactories;
-     
-     // 添加引擎与工厂的绑定关系
-     nlohmann::json engineBindings = nlohmann::json::array();
-     engineBindings.push_back({
-         {"engineName", "engine1"},
-         {"factoryName", "physics_factory"}
+    // 添加所有工厂到配置
+    moduleFactories.push_back(preprocessingFactory);
+    moduleFactories.push_back(solverFactory);
+    moduleFactories.push_back(turbulenceFactory);
+    moduleFactories.push_back(postFactory);
+    
+    configInfo["moduleFactories"] = moduleFactories;
+    
+    // 修改：正确关联引擎与工厂的绑定关系
+    nlohmann::json engineBindings = nlohmann::json::array();
+    engineBindings.push_back({
+         {"engineName", "PreGrid"},
+         {"factoryName", "preprocessing_factory"}  // 关联到预处理工厂
      });
      engineBindings.push_back({
-         {"engineName", "engine2"},
-         {"factoryName", "turbulence_factory"}
+         {"engineName", "Solve"},
+         {"factoryName", "solver_factory"}  // 关联到求解工厂
      });
      engineBindings.push_back({
-         {"engineName", "engine3"},
-         {"factoryName", "physics_factory"}
+         {"engineName", "Post"},
+         {"factoryName", "post_factory"}  // 关联到后处理工厂
      });
      engineBindings.push_back({
          {"engineName", "mainProcess"},
@@ -579,6 +697,7 @@ void getConfigInfo(std::shared_ptr<ModuleSystem::AdvancedRegistry> registry,
          configInfo["config"][moduleType.name] = moduleDefaults;
      }
      
+     // 保存配置文件
      std::ofstream file(outputFile);
      if (!file.is_open()) {
          throw std::runtime_error("无法创建配置文件: " + outputFile);
@@ -860,6 +979,55 @@ void ModuleFactoryCollection::initializeFactoriesFromConfig(const nlohmann::json
     }
 }
 
+// 初始化静态工厂池
+void ModuleFactoryCollection::initializeStaticFactoryPool(const nlohmann::json& factoryPool) {
+    staticFactoryPool_ = factoryPool;
+    factoryExecutionConfigs_.clear();
+    
+    // 解析每个工厂的执行逻辑
+    for (const auto& factory : factoryPool) {
+        if (factory.contains("name") && factory.contains("executionType")) {
+            std::string factoryName = factory["name"];
+            std::string executionTypeStr = factory["executionType"];
+            
+            FactoryExecutionConfig config;
+            
+            if (executionTypeStr == "CHOOSE_ONE") {
+                config.type = FactoryExecutionType::CHOOSE_ONE;
+            } else if (executionTypeStr == "SEQUENTIAL_AND_CHOOSE") {
+                config.type = FactoryExecutionType::SEQUENTIAL_AND_CHOOSE;
+                config.firstModule = factory.value("firstModule", "");
+                
+                if (factory.contains("remainingModules") && factory["remainingModules"].is_array()) {
+                    for (const auto& module : factory["remainingModules"]) {
+                        config.remainingModules.push_back(module);
+                    }
+                }
+            } else if (executionTypeStr == "CHOOSE_ONE_AGAIN") {
+                config.type = FactoryExecutionType::CHOOSE_ONE_AGAIN;
+            } else {
+                // 默认为CHOOSE_ONE
+                config.type = FactoryExecutionType::CHOOSE_ONE;
+            }
+            
+            factoryExecutionConfigs_[factoryName] = config;
+        }
+    }
+}
+
+// 获取静态工厂执行配置
+FactoryExecutionConfig ModuleFactoryCollection::getFactoryExecutionConfig(const std::string& factoryName) {
+    auto it = factoryExecutionConfigs_.find(factoryName);
+    if (it != factoryExecutionConfigs_.end()) {
+        return it->second;
+    }
+    
+    // 默认返回CHOOSE_ONE类型的配置
+    FactoryExecutionConfig defaultConfig;
+    defaultConfig.type = FactoryExecutionType::CHOOSE_ONE;
+    return defaultConfig;
+}
+
 void runWithConfig(const nlohmann::json& config, const std::string& outputFile) {
     std::string outputConfigFile = outputFile.empty() ? "config_.json" : outputFile;
 
@@ -913,7 +1081,7 @@ void runWithConfig(const nlohmann::json& config, const std::string& outputFile) 
             // 检查每个引擎使用的模块是否属于其绑定的工厂
             if (config["engine"].contains("enginePool")) {
                 for (const auto& engineDef : config["engine"]["enginePool"]) {
-                    if (!engineDef.contains("name") || !engineDef["enabled"]) continue;
+                    if (!engineDef.contains("name") || !engineDef["enabled"].get<bool>()) continue;
                     
                     std::string engineName = engineDef["name"];
                     std::string boundFactoryName = "default"; // 默认工厂
@@ -926,19 +1094,20 @@ void runWithConfig(const nlohmann::json& config, const std::string& outputFile) 
                     // 检查引擎使用的模块
                     if (engineDef.contains("modules") && engineDef["modules"].is_array()) {
                         for (const auto& moduleInfo : engineDef["modules"]) {
-                            if (!moduleInfo.contains("name") || !moduleInfo["enabled"]) continue;
-                            
-                            std::string moduleName = moduleInfo["name"];
-                            
-                            // 如果工厂是默认工厂"default"，任何模块都可以使用
-                            if (boundFactoryName != "default") {
-                                // 检查模块是否在绑定的工厂中
-                                if (!factoryToModules[boundFactoryName].count(moduleName)) {
-                                    std::cerr << "错误: 引擎 '" << engineName 
-                                              << "' 尝试使用不属于其绑定工厂 '" << boundFactoryName 
-                                              << "' 的模块 '" << moduleName << "'" << std::endl;
-                                    // 退出程序或抛出异常
-                                    throw std::runtime_error("引擎与工厂绑定检查失败");
+                            if (!moduleInfo.contains("name") || !moduleInfo.contains("enabled")) continue;
+                            if (moduleInfo["enabled"]) {
+                                std::string moduleName = moduleInfo["name"];
+                                
+                                // 如果工厂是默认工厂"default"，任何模块都可以使用
+                                if (boundFactoryName != "default") {
+                                    // 检查模块是否在绑定的工厂中
+                                    if (!factoryToModules[boundFactoryName].count(moduleName)) {
+                                        std::cerr << "错误: 引擎 '" << engineName 
+                                                  << "' 尝试使用不属于其绑定工厂 '" << boundFactoryName 
+                                                  << "' 的模块 '" << moduleName << "'" << std::endl;
+                                        // 退出程序或抛出异常
+                                        throw std::runtime_error("引擎与工厂绑定检查失败");
+                                    }
                                 }
                             }
                         }
@@ -1034,7 +1203,7 @@ void runWithConfig(const nlohmann::json& config, const std::string& outputFile) 
         // 检查每个引擎使用的模块是否属于其绑定的工厂
         if (config["engine"].contains("enginePool")) {
             for (const auto& engineDef : config["engine"]["enginePool"]) {
-                if (!engineDef.contains("name") || !engineDef["enabled"]) continue;
+                if (!engineDef.contains("name") || !engineDef["enabled"].get<bool>()) continue;
                 
                 std::string engineName = engineDef["name"];
                 std::string boundFactoryName = "default"; // 默认工厂
@@ -1047,7 +1216,7 @@ void runWithConfig(const nlohmann::json& config, const std::string& outputFile) 
                 // 检查引擎使用的模块
                 if (engineDef.contains("modules") && engineDef["modules"].is_array()) {
                     for (const auto& moduleInfo : engineDef["modules"]) {
-                        if (!moduleInfo.contains("name") || !moduleInfo["enabled"]) continue;
+                        if (!moduleInfo.contains("name") || !moduleInfo["enabled"].get<bool>()) continue;
                         
                         std::string moduleName = moduleInfo["name"];
                         
@@ -1265,6 +1434,7 @@ void runWithConfig(const nlohmann::json& config, const std::string& outputFile) 
         }
         
         // 根据使用的引擎名称和绑定关系，确定需要加载的模块工厂
+        // 把requiredFactories作为引用的引擎成员变量，执行config的时候把工厂和配置参数
         std::unordered_set<std::string> requiredFactories;
         for (const auto& engineName : usedEngineNames) {
             std::string factoryName = engine->getEngineFactoryBinding(engineName);
@@ -1351,6 +1521,8 @@ void runWithConfig(const nlohmann::json& config, const std::string& outputFile) 
                                 // 为模块准备参数
                                 nlohmann::json params = getEffectiveModuleParams(moduleConfig, moduleName, moduleInfo.contains("params") ? moduleInfo["params"] : nlohmann::json(nullptr));
                                 
+                                //把四个动作拆开，分4个引擎来调用同一类型的模块函数
+
                                 // 固定的模块生命周期：创建、初始化、执行、释放
                                 std::cout << "创建模块: " << moduleName << std::endl;
                                 context.createModule(moduleName, params);
@@ -1418,115 +1590,140 @@ void runWithConfig(const nlohmann::json& config, const std::string& outputFile) 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // 模块函数定义
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// LaminarSolverEuler 实现
-LaminarSolverEuler::LaminarSolverEuler(const nlohmann::json& params) {
-    euler_type_ = params.value("euler_type", "Euler_1");
-    euler_value_ = params.value("value", 1.1);
+
+PreCGNS::PreCGNS(const nlohmann::json& params) {
+    cgns_type_ = params.value("cgns_type", "HDF5");
+    cgns_value_ = params.value("cgns_value", 15);
 }
 
-void LaminarSolverEuler::execute() { 
-    /* ...implementation... */ 
+void PreCGNS::initialize() {
 }
 
-void LaminarSolverEuler::release() { 
-    /* ...implementation... */ 
+void PreCGNS::execute() {
 }
 
-nlohmann::json LaminarSolverEuler::GetParamSchema() {
+void PreCGNS::release() {
+}
+
+nlohmann::json PreCGNS::GetParamSchema() {
+    return {
+        {"cgns_type", {
+            {"type", "string"},
+            {"description", "Type of cgns file"},
+            {"enum", {"HDF5", "ADF"}},
+            {"default", "HDF5"}
+        }},
+        {"cgns_value", {
+            {"type", "number"},
+            {"description", "Number of cgns value"},
+            {"minimum", 1},
+            {"maximum", 100},
+            {"default", 10}
+        }}
+    };
+}
+
+nlohmann::json ModuleParamTraits<PreCGNS>::GetParamSchema() {
+    return PreCGNS::GetParamSchema();
+}
+
+// PrePlot3D 模块
+PrePlot3D::PrePlot3D(const nlohmann::json& params) {
+    plot3_type_ = params.value("plot3_type", "ASCII");
+    plot3d_value_ = params.value("plot3_value", 30);
+}
+
+void PrePlot3D::initialize() {
+}
+
+void PrePlot3D::execute() {
+}
+
+void PrePlot3D::release() {
+}
+
+nlohmann::json ModuleSystem::PrePlot3D::GetParamSchema() {
+    return {
+        {"plot3_type", {
+            {"type", "string"},
+            {"description", "Type of plot3 file"},
+            {"enum", {"ASCII", "Binary"}},
+            {"default", "ASCII"}
+        }},
+        {"plot3_value", {
+            {"type", "number"},
+            {"description", "Number of plot3 value"},
+            {"minimum", 1},
+            {"maximum", 100},
+            {"default", 10}
+        }}
+    };
+}
+
+nlohmann::json ModuleSystem::ModuleParamTraits<ModuleSystem::PrePlot3D>::GetParamSchema() {
+    return PrePlot3D::GetParamSchema();
+}
+
+// EulerSolver 模块
+EulerSolver::EulerSolver(const nlohmann::json& params) {
+    euler_type_ = params.value("euler_type", "Standard");
+    euler_value__ = params.value("euler_value", 0.5);
+}
+
+void EulerSolver::initialize() {
+}
+
+void EulerSolver::execute() {
+}
+
+void EulerSolver::release() {
+}
+
+nlohmann::json EulerSolver::GetParamSchema() {
     return {
         {"euler_type", {
             {"type", "string"},
-            {"description", "Type of Euler (Euler_1/Euler_2)"},
-            {"enum", {"Euler_1", "Euler_2"}},
-            {"default", "Euler_1"}
+            {"description", "Type of euler file"},
+            {"enum", {"Standard", "Other"}},
+            {"default", "Standard"}
         }},
-        {"value", {
+        {"euler_value", {
             {"type", "number"},
-            {"description", "Euler condition value"},
-            {"default", 1.1}
+            {"description", "Number of euler value"},
+            {"minimum", 0},
+            {"maximum", 10},
+            {"default", 0.5}
         }}
     };
 }
 
-// TurbulenceSolverSA 实现
-TurbulenceSolverSA::TurbulenceSolverSA(const nlohmann::json& params) {
-    sa_type_ = params.value("sa_type", "SA_Standard");
-    value_ = params.value("value", 2.0);
+nlohmann::json ModuleParamTraits<EulerSolver>::GetParamSchema() {
+    return EulerSolver::GetParamSchema();
 }
 
-void TurbulenceSolverSA::execute() {
-    /* ...implementation... */
-    std::cout << "value_: " << value_ << std::endl;
-    std::cout << "sa_type_: " << sa_type_ << std::endl;
-}
-
-void TurbulenceSolverSA::release() {
-    /* ...implementation... */
-}
-
-nlohmann::json TurbulenceSolverSA::GetParamSchema() {
-    return {
-        {"sa_type", {
-            {"type", "string"},
-            {"description", "Type of SA model"},
-            {"enum", {"SA_Standard", "SA_Modified"}},
-            {"default", "SA_Standard"}
-        }},
-        {"value", {
-            {"type", "number"},
-            {"description", "SA model constant"},
-            {"default", 2.0}
-        }}
-    };
-}
-
-// ThermalSolver 实现
-ThermalSolver::ThermalSolver(const nlohmann::json& params) {
-    delta_t_ = params.value("delta_t", 0.01);
-}
-
-void ThermalSolver::execute() {
-    /* ...implementation... */
-}
-
-void ThermalSolver::release() {
-    /* ...implementation... */
-}
-
-nlohmann::json ThermalSolver::GetParamSchema() {
-    return {
-        {"delta_t", {
-            {"type", "number"},
-            {"description", "Time step for thermal solver"},
-            {"minimum", 0.0001},
-            {"maximum", 1.0},
-            {"default", 0.01}
-        }}
-    };
-}
-
-// FluidSolver 实现
-FluidSolver::FluidSolver(const nlohmann::json& params) {
-    solver_type_ = params.value("solver_type", "SIMPLE");
+// SASolver 模块
+SASolver::SASolver(const nlohmann::json& params) {
+    sa_type_ = params.value("solver_type", "Standard");
     convergence_criteria_ = params.value("convergence_criteria", 1e-6);
     max_iterations_ = params.value("max_iterations", 1000);
 }
 
-void FluidSolver::execute() {
-    /* ...implementation... */
+void SASolver::initialize() {
 }
 
-void FluidSolver::release() {
-    /* ...implementation... */
+void SASolver::execute() {
 }
 
-nlohmann::json FluidSolver::GetParamSchema() {
+void SASolver::release() {
+}
+
+nlohmann::json SASolver::GetParamSchema() {
     return {
         {"solver_type", {
             {"type", "string"},
             {"description", "Type of fluid solver"},
-            {"enum", {"SIMPLE", "PISO", "Coupled"}},
-            {"default", "SIMPLE"}
+            {"enum", {"Standard", "SA-BC", "SA-DDES","SA-IDDES"}},
+            {"default", "Standard"}
         }},
         {"convergence_criteria", {
             {"type", "number"},
@@ -1545,30 +1742,168 @@ nlohmann::json FluidSolver::GetParamSchema() {
     };
 }
 
+nlohmann::json ModuleParamTraits<SASolver>::GetParamSchema() {
+    return SASolver::GetParamSchema();
+}
+
+// SSTSolver 模块
+SSTSolver::SSTSolver(const nlohmann::json& params) {
+    sst_type_ = params.value("solver_type", "Standard");
+    convergence_criteria_ = params.value("convergence_criteria", 1e-6);
+    max_iterations_ = params.value("max_iterations", 1000);
+}
+
+void SSTSolver::initialize() {
+}
+
+void SSTSolver::execute() {
+}
+
+void SSTSolver::release() {
+}
+
+nlohmann::json SSTSolver::GetParamSchema() {
+    return {
+        {"solver_type", {
+            {"type", "string"},
+            {"description", "Type of fluid solver"},
+            {"enum", {"Standard", "SST-CC", "SA-DDES","SA-IDDES"}},
+            {"default", "Standard"}
+        }},
+        {"convergence_criteria", {
+            {"type", "number"},
+            {"description", "Convergence criteria for solver"},
+            {"minimum", 1e-10},
+            {"maximum", 1e-3},
+            {"default", 1e-6}
+        }},
+        {"max_iterations", {
+            {"type", "number"},
+            {"description", "Maximum number of iterations"},
+            {"minimum", 10},
+            {"maximum", 10000},
+            {"default", 1000}
+        }}
+    };
+}
+
+nlohmann::json ModuleParamTraits<SSTSolver>::GetParamSchema() {
+    return SSTSolver::GetParamSchema();
+}
+
+// PostCGNS 模块
+PostCGNS::PostCGNS(const nlohmann::json& params) {
+    cgns_type_ = params.value("cgns_type", "HDF5");
+    cgns_value_ = params.value("cgns_value", 15);
+}
+
+void PostCGNS::initialize() {
+}
+
+void PostCGNS::execute() {
+}
+
+void PostCGNS::release() {
+}
+
+nlohmann::json PostCGNS::GetParamSchema() {
+    return {
+        {"cgns_type", {
+            {"type", "string"},
+            {"description", "Type of cgns file"},
+            {"enum", {"HDF5", "ADF"}},
+            {"default", "HDF5"}
+        }},
+        {"cgns_value", {
+            {"type", "number"},
+            {"description", "Number of cgns value"},
+            {"minimum", 1},
+            {"maximum", 100},
+            {"default", 10}
+        }}
+    };
+}
+
+nlohmann::json ModuleParamTraits<PostCGNS>::GetParamSchema() {
+    return PostCGNS::GetParamSchema();
+}
+
+// PostPlot3D 模块
+PostPlot3D::PostPlot3D(const nlohmann::json& params) {
+    plot3d_type_ = params.value("plot3_type", "ASCII");
+    plot3d_value_ = params.value("plot3_value", 30);
+}
+
+void PostPlot3D::initialize() {
+}
+
+void PostPlot3D::execute() {
+}
+
+void PostPlot3D::release() {
+}
+
+nlohmann::json PostPlot3D::GetParamSchema() {
+    return {
+        {"cgns_type", {
+            {"type", "string"},
+            {"description", "Type of plot3 file"},
+            {"enum", {"ASCII", "Binary"}},
+            {"default", "ASCII"}
+        }},
+        {"cgns_value", {
+            {"type", "number"},
+            {"description", "Number of plot3 value"},
+            {"minimum", 1},
+            {"maximum", 100},
+            {"default", 30}
+        }}
+    };
+}
+
+nlohmann::json ModuleParamTraits<PostPlot3D>::GetParamSchema() {
+    return PostPlot3D::GetParamSchema();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // 模块注册
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ModuleRegistryInitializer::ModuleRegistryInitializer() {
     ModuleTypeRegistry::instance().registerType(
-        "TurbulenceSolverSA", 
-        []() -> nlohmann::json { return TurbulenceSolverSA::GetParamSchema(); }
+        "PreCGNS", 
+        []() -> nlohmann::json { return PreCGNS::GetParamSchema(); }
     );
     
     ModuleTypeRegistry::instance().registerType(
-        "LaminarSolverEuler", 
-        []() -> nlohmann::json { return LaminarSolverEuler::GetParamSchema(); }
+        "PrePlot3D", 
+        []() -> nlohmann::json { return PrePlot3D::GetParamSchema(); }
     );
     
     ModuleTypeRegistry::instance().registerType(
-        "ThermalSolver", 
-        []() -> nlohmann::json { return ThermalSolver::GetParamSchema(); }
+
+        "EulerSolver", 
+        []() -> nlohmann::json { return EulerSolver::GetParamSchema(); }
     );
 
-    // 添加新模块的注册
     ModuleTypeRegistry::instance().registerType(
-        "FluidSolver", 
-        []() -> nlohmann::json { return FluidSolver::GetParamSchema(); }
+        "SASolver", 
+        []() -> nlohmann::json { return SASolver::GetParamSchema(); }
+    );
+
+    ModuleTypeRegistry::instance().registerType(
+        "SSTSolver", 
+        []() -> nlohmann::json { return SSTSolver::GetParamSchema(); }
+    );
+
+    ModuleTypeRegistry::instance().registerType(
+        "PostCGNS", 
+        []() -> nlohmann::json { return PostCGNS::GetParamSchema(); }
+    );
+
+    ModuleTypeRegistry::instance().registerType(
+        "PostPlot3D", 
+        []() -> nlohmann::json { return PostPlot3D::GetParamSchema(); }
     );
 }
 
@@ -1576,50 +1911,49 @@ ModuleRegistryInitializer::ModuleRegistryInitializer() {
 void ModuleFactoryInitializer::init() {
     ModuleFactory& factory = ModuleFactory::instance();
     
-    // 注册 TurbulenceSolverSA 模块
-    factory.registerModuleType("TurbulenceSolverSA", 
+    factory.registerModuleType("PreCGNS", 
         [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-            reg->Register<TurbulenceSolverSA>(name);
+            reg->Register<PreCGNS>(name);
             return true;
         });
     
-    // 注册 LaminarSolverEuler 模块
-    factory.registerModuleType("LaminarSolverEuler", 
+    factory.registerModuleType("PrePlot3D", 
         [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-            reg->Register<LaminarSolverEuler>(name);
+            reg->Register<PrePlot3D>(name);
             return true;
         });
     
-    // 注册 ThermalSolver 模块
-    factory.registerModuleType("ThermalSolver", 
+    factory.registerModuleType("EulerSolver", 
         [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-            reg->Register<ThermalSolver>(name);
+            reg->Register<EulerSolver>(name);
             return true;
         });
     
-    // 注册 FluidSolver 模块
-    factory.registerModuleType("FluidSolver", 
+    factory.registerModuleType("SASolver", 
         [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-            reg->Register<FluidSolver>(name);
+            reg->Register<SASolver>(name);
+            return true;
+        });
+
+    factory.registerModuleType("SSTSolver", 
+        [](AdvancedRegistry* reg, const std::string& name) -> bool { 
+            reg->Register<SSTSolver>(name);
+            return true;
+        });
+
+    factory.registerModuleType("PostCGNS", 
+        [](AdvancedRegistry* reg, const std::string& name) -> bool { 
+            reg->Register<PostCGNS>(name);
+            return true;
+        });
+
+    factory.registerModuleType("PostPlot3D", 
+        [](AdvancedRegistry* reg, const std::string& name) -> bool { 
+            reg->Register<PostPlot3D>(name);
             return true;
         });
 }
 
-nlohmann::json ModuleParamTraits<TurbulenceSolverSA>::GetParamSchema() {
-    return TurbulenceSolverSA::GetParamSchema();
-}
-
-nlohmann::json ModuleParamTraits<LaminarSolverEuler>::GetParamSchema() {
-    return LaminarSolverEuler::GetParamSchema();
-}
-
-nlohmann::json ModuleParamTraits<ThermalSolver>::GetParamSchema() {
-    return ThermalSolver::GetParamSchema();
-}
-
-nlohmann::json ModuleParamTraits<FluidSolver>::GetParamSchema() {
-    return FluidSolver::GetParamSchema();
-}
 
 struct ModuleFactoryInit {
         ModuleFactoryInit() {
@@ -1629,5 +1963,15 @@ struct ModuleFactoryInit {
 
 // 全局静态实例定义
 static ModuleSystem::ModuleFactoryInit moduleFactoryInitInstance;
+
+// 初始化静态成员变量
+nlohmann::json ModuleSystem::ModuleFactoryCollection::staticFactoryPool_ = nlohmann::json::array();
+std::unordered_map<std::string, ModuleSystem::FactoryExecutionConfig> ModuleSystem::ModuleFactoryCollection::factoryExecutionConfigs_;
+nlohmann::json ModuleSystem::Nestedengine::staticEnginePool_ = nlohmann::json::array();
+
+// 初始化静态引擎池
+void Nestedengine::initializeStaticEnginePool(const nlohmann::json& enginePool) {
+    staticEnginePool_ = enginePool;
+}
 
 }

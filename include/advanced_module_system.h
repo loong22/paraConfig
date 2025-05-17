@@ -42,6 +42,20 @@ class AdvancedRegistry;
 class engineContext;
 class Nestedengine;
 
+// 定义工厂执行逻辑枚举
+enum class FactoryExecutionType {
+    CHOOSE_ONE,             // 多选一执行（只执行一个模块）
+    SEQUENTIAL_AND_CHOOSE,  // 先执行一个特定模块，然后从剩余模块中多选一执行
+    CHOOSE_ONE_AGAIN        // 二选一执行
+};
+
+// 工厂执行逻辑配置结构
+struct FactoryExecutionConfig {
+    FactoryExecutionType type;
+    std::string firstModule;  // 用于 SEQUENTIAL_AND_CHOOSE 类型
+    std::vector<std::string> remainingModules;  // 用于 SEQUENTIAL_AND_CHOOSE 类型的可选模块
+};
+
 template <typename T>
 struct ModuleParamTraits;
 
@@ -133,6 +147,10 @@ private:
     // 默认工厂名称
     std::string defaultFactoryName_ = "default";
     
+    // 静态成员变量 - 存储工厂池和它们的执行配置
+    static nlohmann::json staticFactoryPool_;
+    static std::unordered_map<std::string, FactoryExecutionConfig> factoryExecutionConfigs_;
+    
     // 使用自定义创建共享指针的方式
     std::shared_ptr<ModuleFactory> createModuleFactoryPtr() {
         ModuleFactory* factory = new ModuleFactory();
@@ -151,6 +169,17 @@ public:
         static ModuleFactoryCollection instance;
         return instance;
     }
+    
+    // 初始化静态工厂池
+    static void initializeStaticFactoryPool(const nlohmann::json& factoryPool);
+    
+    // 获取静态工厂池
+    static const nlohmann::json& getStaticFactoryPool() {
+        return staticFactoryPool_;
+    }
+    
+    // 获取静态工厂执行配置
+    static FactoryExecutionConfig getFactoryExecutionConfig(const std::string& factoryName);
     
     // 根据名称获取模块工厂，如不存在则创建
     std::shared_ptr<ModuleFactory> getFactory(const std::string& factoryName = "") {
@@ -269,7 +298,7 @@ class engineContext : public std::enable_shared_from_this<engineContext> {
 public:
     engineContext(AdvancedRegistry& reg, Nestedengine* engine = nullptr);
     
-    // 添加引擎名称和模块工厂权限检查
+    // 设置引擎名称和模块工厂权限
     void setEngineName(const std::string& name) { engineName_ = name; }
     const std::string& getEngineName() const { return engineName_; }
     
@@ -280,7 +309,6 @@ public:
     
     // 检查模块权限
     bool canAccessModule(const std::string& moduleName) const {
-        // 如果没有设置允许的模块列表，或者模块在允许列表中，则允许访问
         return allowedModules_.empty() || allowedModules_.count(moduleName) > 0;
     }
     
@@ -290,16 +318,25 @@ public:
         if (it == parameters_.end()) {
             throw std::runtime_error("Parameter not found: " + name);
         }
-        return it->get<T>();
+        return it.value().get<T>();  // 使用 value() 方法获取值
     }
     
     void setParameter(const std::string& name, const nlohmann::json& value);
     void executeSubProcess(const std::string& name);
 
+    // 模块生命周期方法开放为独立函数
     void* createModule(const std::string& name, const nlohmann::json& params);
     void initializeModule(const std::string& name);
     void executeModule(const std::string& name);
     void releaseModule(const std::string& name);
+    
+    // 直接使用模块指针的生命周期方法
+    void initializeModule(void* modulePtr);
+    void executeModule(void* modulePtr);
+    void releaseModule(void* modulePtr);
+    
+    // 根据工厂执行逻辑执行模块
+    void executeModulesAccordingToFactoryLogic(const std::string& factoryName);
 
     friend class Nestedengine;
 
@@ -319,6 +356,9 @@ private:
     nlohmann::json parameters_;
     std::unordered_map<std::string, std::string> engineFactoryBindings_; // 存储引擎和工厂的绑定关系
     
+    // 静态成员变量 - 存储引擎池
+    static nlohmann::json staticEnginePool_;
+    
 public:
     explicit Nestedengine(AdvancedRegistry& reg);
     void Build(const nlohmann::json& config);
@@ -336,6 +376,14 @@ public:
     
     // 从配置初始化引擎和工厂的绑定
     void initializeEngineFactoryBindings(const nlohmann::json& config);
+    
+    // 初始化静态引擎池
+    static void initializeStaticEnginePool(const nlohmann::json& enginePool);
+    
+    // 获取静态引擎池
+    static const nlohmann::json& getStaticEnginePool() {
+        return staticEnginePool_;
+    }
 };
 
 struct ModuleTypeInfo {
@@ -420,72 +468,117 @@ void runWithConfig(const nlohmann::json& config, const std::string& outputFile =
 // 模块类声明
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// LaminarSolverEuler 模块
-class LaminarSolverEuler {
+class PreCGNS {
 public:
-    explicit LaminarSolverEuler(const nlohmann::json& params);
-    void initialize() {} // 空实现
+    explicit PreCGNS(const nlohmann::json& params);
+    void initialize();
+    void execute();
+    void release();
+    static nlohmann::json GetParamSchema();
+private:
+    std::string cgns_type_;
+    double cgns_value_;
+};
+
+template <> struct ModuleParamTraits<PreCGNS> {
+    static nlohmann::json GetParamSchema();
+};
+
+class PrePlot3D {
+public:
+    explicit PrePlot3D(const nlohmann::json& params);
+    void initialize();
+    void execute();
+    void release();
+    static nlohmann::json GetParamSchema();
+private:
+    std::string plot3_type_;
+    double plot3d_value_;
+};
+
+template <> struct ModuleParamTraits<PrePlot3D> {
+    static nlohmann::json GetParamSchema();
+};
+
+class EulerSolver {
+public:
+    explicit EulerSolver(const nlohmann::json& params);
+    void initialize();
     void execute();
     void release();
     static nlohmann::json GetParamSchema();
 private:
     std::string euler_type_;
-    double euler_value_;
+    double euler_value__;
 };
 
-// TurbulenceSolverSA 模块
-class TurbulenceSolverSA {
+template <> struct ModuleParamTraits<EulerSolver> {
+    static nlohmann::json GetParamSchema();
+};
+
+class SASolver {
 public:
-    explicit TurbulenceSolverSA(const nlohmann::json& params);
-    void initialize() {} // 空实现
+    explicit SASolver(const nlohmann::json& params);
+    void initialize();
     void execute();
     void release();
     static nlohmann::json GetParamSchema();
 private:
     std::string sa_type_;
-    double value_;
-};
-
-// ThermalSolver 模块
-class ThermalSolver {
-public:
-    explicit ThermalSolver(const nlohmann::json& params);
-    void initialize() {} // 空实现
-    void execute();
-    void release();
-    static nlohmann::json GetParamSchema();
-private:
-    double delta_t_;
-};
-
-// FluidSolver 模块
-class FluidSolver {
-public:
-    explicit FluidSolver(const nlohmann::json& params);
-    void initialize() {} // 空实现
-    void execute();
-    void release();
-    static nlohmann::json GetParamSchema();
-private:
-    std::string solver_type_;
     double convergence_criteria_;
     int max_iterations_;
 };
 
-// 模块参数特化
-template <> struct ModuleParamTraits<LaminarSolverEuler> {
+template <> struct ModuleParamTraits<SASolver> {
     static nlohmann::json GetParamSchema();
 };
 
-template <> struct ModuleParamTraits<TurbulenceSolverSA> {
+class SSTSolver {
+public:
+    explicit SSTSolver(const nlohmann::json& params);
+    void initialize();
+    void execute();
+    void release();
+    static nlohmann::json GetParamSchema();
+private:
+    std::string sst_type_;
+    double convergence_criteria_;
+    int max_iterations_;
+};
+
+template <> struct ModuleParamTraits<SSTSolver> {
     static nlohmann::json GetParamSchema();
 };
 
-template <> struct ModuleParamTraits<ThermalSolver> {
+class PostCGNS {
+public:
+    explicit PostCGNS(const nlohmann::json& params);
+    void initialize();
+    void execute();
+    void release();
+    static nlohmann::json GetParamSchema();
+private:
+    std::string cgns_type_;
+    double cgns_value_;
+};
+
+template <> struct ModuleParamTraits<PostCGNS> {
     static nlohmann::json GetParamSchema();
 };
 
-template <> struct ModuleParamTraits<FluidSolver> {
+class PostPlot3D {
+public:
+    explicit PostPlot3D(const nlohmann::json& params);
+    void initialize();
+    void execute();
+    void release();
+    static nlohmann::json GetParamSchema();
+private:
+    std::string plot3d_type_;
+    double plot3d_value_;
+};
+
+template <> struct ModuleParamTraits<PostPlot3D> {
     static nlohmann::json GetParamSchema();
 };
 
