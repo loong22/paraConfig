@@ -42,20 +42,6 @@ class AdvancedRegistry;
 class engineContext;
 class Nestedengine;
 
-// 定义工厂执行逻辑枚举
-enum class FactoryExecutionType {
-    CHOOSE_ONE,             // 多选一执行（只执行一个模块）
-    SEQUENTIAL_AND_CHOOSE,  // 先执行一个特定模块，然后从剩余模块中多选一执行
-    CHOOSE_ONE_AGAIN        // 二选一执行
-};
-
-// 工厂执行逻辑配置结构
-struct FactoryExecutionConfig {
-    FactoryExecutionType type;
-    std::string firstModule;  // 用于 SEQUENTIAL_AND_CHOOSE 类型
-    std::vector<std::string> remainingModules;  // 用于 SEQUENTIAL_AND_CHOOSE 类型的可选模块
-};
-
 template <typename T>
 struct ModuleParamTraits;
 
@@ -147,10 +133,6 @@ private:
     // 默认工厂名称
     std::string defaultFactoryName_ = "default";
     
-    // 静态成员变量 - 存储工厂池和它们的执行配置
-    static nlohmann::json staticFactoryPool_;
-    static std::unordered_map<std::string, FactoryExecutionConfig> factoryExecutionConfigs_;
-    
     // 使用自定义创建共享指针的方式
     std::shared_ptr<ModuleFactory> createModuleFactoryPtr() {
         ModuleFactory* factory = new ModuleFactory();
@@ -169,17 +151,6 @@ public:
         static ModuleFactoryCollection instance;
         return instance;
     }
-    
-    // 初始化静态工厂池
-    static void initializeStaticFactoryPool(const nlohmann::json& factoryPool);
-    
-    // 获取静态工厂池
-    static const nlohmann::json& getStaticFactoryPool() {
-        return staticFactoryPool_;
-    }
-    
-    // 获取静态工厂执行配置
-    static FactoryExecutionConfig getFactoryExecutionConfig(const std::string& factoryName);
     
     // 根据名称获取模块工厂，如不存在则创建
     std::shared_ptr<ModuleFactory> getFactory(const std::string& factoryName = "") {
@@ -334,9 +305,6 @@ public:
     void initializeModule(void* modulePtr);
     void executeModule(void* modulePtr);
     void releaseModule(void* modulePtr);
-    
-    // 根据工厂执行逻辑执行模块
-    void executeModulesAccordingToFactoryLogic(const std::string& factoryName);
 
     friend class Nestedengine;
 
@@ -462,7 +430,71 @@ nlohmann::json getEffectiveModuleParams(
     const std::string& moduleName,
     const nlohmann::json& engineSpecificParams);
 
-void runWithConfig(const nlohmann::json& config, const std::string& outputFile = "");
+class ConfigurationStorage {
+public:
+    static ConfigurationStorage& instance() {
+        static ConfigurationStorage instance;
+        return instance;
+    }
+    
+    // 验证过的配置
+    nlohmann::json config;
+    
+    // 预处理的关键数据
+    nlohmann::json moduleConfig;
+    nlohmann::json globalParams;
+    std::unordered_set<std::string> knownModules;
+    std::unordered_set<std::string> enabledModules;
+    std::unordered_set<std::string> usedEngineNames;
+    
+    // 核心组件
+    std::shared_ptr<AdvancedRegistry> registry;
+    std::unique_ptr<Nestedengine> engine;
+    std::shared_ptr<engineContext> mainContext;
+    
+    // 工厂相关信息
+    std::unordered_set<std::string> requiredFactories;
+    
+    // 引擎定义状态
+    bool enginesAreDefined = false;
+    
+    void clear() {
+        config = nlohmann::json();
+        moduleConfig = nlohmann::json();
+        globalParams = nlohmann::json();
+        knownModules.clear();
+        enabledModules.clear();
+        usedEngineNames.clear();
+        requiredFactories.clear();
+        enginesAreDefined = false;
+        // 保留 registry、engine 和 mainContext 不清除实例，只重置状态
+    }
+    
+    // 初始化注册表和引擎
+    void initializeRegistryAndEngine() {
+        if (!registry) {
+            registry = std::make_shared<AdvancedRegistry>();
+        }
+        
+        if (!engine) {
+            engine = std::make_unique<Nestedengine>(*registry);
+        }
+    }
+
+private:
+    ConfigurationStorage() = default;
+    ConfigurationStorage(const ConfigurationStorage&) = delete;
+    ConfigurationStorage& operator=(const ConfigurationStorage&) = delete;
+};
+
+// 更新函数声明
+void run();
+
+bool paramValidation(const nlohmann::json& config);
+
+void saveUsedConfig(const nlohmann::json& config, const std::string& outputFile);
+
+void test();
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // 模块类声明

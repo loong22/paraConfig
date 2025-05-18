@@ -242,86 +242,6 @@ void engineContext::releaseModule(const std::string& name) {
     }
 }
 
-// 根据工厂执行逻辑执行模块
-void engineContext::executeModulesAccordingToFactoryLogic(const std::string& factoryName) {
-    // 获取工厂执行配置
-    auto config = ModuleFactoryCollection::getFactoryExecutionConfig(factoryName);
-    
-    // 获取工厂中的模块
-    auto factory = ModuleFactoryCollection::instance().getFactory(factoryName);
-    auto& moduleCreators = factory->getAllModuleCreators();
-    
-    std::vector<std::string> moduleNames;
-    for (const auto& [name, _] : moduleCreators) {
-        moduleNames.push_back(name);
-    }
-    
-    switch (config.type) {
-        case FactoryExecutionType::CHOOSE_ONE: {
-            // 多选一执行：让用户选择一个模块执行
-            std::cout << "请选择要执行的模块 (从工厂 " << factoryName << "):" << std::endl;
-            for (size_t i = 0; i < moduleNames.size(); ++i) {
-                std::cout << i + 1 << ". " << moduleNames[i] << std::endl;
-            }
-            
-            size_t choice = 0;
-            std::cin >> choice;
-            
-            if (choice > 0 && choice <= moduleNames.size()) {
-                std::string selectedModule = moduleNames[choice - 1];
-                
-                // 执行选中的模块
-                void* moduleInstance = createModule(selectedModule, getParameter<nlohmann::json>(selectedModule));
-                initializeModule(selectedModule);
-                executeModule(selectedModule);
-                releaseModule(selectedModule);
-            }
-            break;
-        }
-        
-        case FactoryExecutionType::SEQUENTIAL_AND_CHOOSE: {
-            // 修改为：按顺序执行所有模块
-            std::cout << "按顺序执行工厂 " << factoryName << " 中的所有模块" << std::endl;
-            
-            // 使用工厂中的所有模块按顺序执行
-            for (const auto& moduleName : moduleNames) {
-                std::cout << "执行模块: " << moduleName << std::endl;
-                
-                // 执行当前模块
-                void* moduleInstance = createModule(moduleName, getParameter<nlohmann::json>(moduleName));
-                initializeModule(moduleName);
-                executeModule(moduleName);
-                releaseModule(moduleName);
-            }
-            break;
-        }
-        
-        default: {
-            // 未知执行类型，默认使用CHOOSE_ONE逻辑
-            std::cerr << "警告: 工厂 '" << factoryName << "' 使用了未知的执行类型，将使用CHOOSE_ONE逻辑" << std::endl;
-            // 复制CHOOSE_ONE的执行逻辑
-            std::cout << "请选择要执行的模块 (从工厂 " << factoryName << "):" << std::endl;
-            for (size_t i = 0; i < moduleNames.size(); ++i) {
-                std::cout << i + 1 << ". " << moduleNames[i] << std::endl;
-            }
-            
-            size_t choice = 0;
-            std::cin >> choice;
-            
-            if (choice > 0 && choice <= moduleNames.size()) {
-                std::string selectedModule = moduleNames[choice - 1];
-                
-                // 执行选中的模块
-                void* moduleInstance = createModule(selectedModule, getParameter<nlohmann::json>(selectedModule));
-                initializeModule(selectedModule);
-                executeModule(selectedModule);
-                releaseModule(selectedModule);
-            }
-            break;
-        }
-    }
-}
-
 // Nestedengine method definitions
 Nestedengine::Nestedengine(AdvancedRegistry& reg) : registry_(reg) {}
 
@@ -524,66 +444,6 @@ nlohmann::json createengineInfo() {
     return engineInfo;
 }
 
-// 在createengineInfo函数中添加
-
-nlohmann::json createDefaultConfig() {
-    nlohmann::json config;
-    
-    // 添加模块工厂定义
-    config["moduleFactories"] = nlohmann::json::array();
-    
-    // 物理模块工厂
-    nlohmann::json physicsFactory;
-    physicsFactory["name"] = "physics_factory";
-    physicsFactory["modules"] = nlohmann::json::array();
-    physicsFactory["modules"].push_back({
-        {"name", "FluidSolver"},
-        {"enabled", true}
-    });
-    physicsFactory["modules"].push_back({
-        {"name", "ThermalSolver"},
-        {"enabled", true}
-    });
-    
-    // 湍流模块工厂
-    nlohmann::json turbulenceFactory;
-    turbulenceFactory["name"] = "turbulence_factory";
-    turbulenceFactory["modules"] = nlohmann::json::array();
-    turbulenceFactory["modules"].push_back({
-        {"name", "TurbulenceSolverSA"},
-        {"enabled", true}
-    });
-    turbulenceFactory["modules"].push_back({
-        {"name", "LaminarSolverEuler"},
-        {"enabled", true}
-    });
-    
-    // 添加工厂定义
-    config["moduleFactories"].push_back(physicsFactory);
-    config["moduleFactories"].push_back(turbulenceFactory);
-    
-    // 引擎与工厂的绑定
-    config["engineFactoryBindings"] = nlohmann::json::array();
-    config["engineFactoryBindings"].push_back({
-        {"engineName", "engine1"},
-        {"factoryName", "physics_factory"}
-    });
-    config["engineFactoryBindings"].push_back({
-        {"engineName", "engine2"},
-        {"factoryName", "turbulence_factory"}
-    });
-    config["engineFactoryBindings"].push_back({
-        {"engineName", "engine3"},
-        {"factoryName", "physics_factory"}
-    });
-    config["engineFactoryBindings"].push_back({
-        {"engineName", "mainProcess"},
-        {"factoryName", "default"}
-    });
-    
-    return config;
-}
-
 void getConfigInfo(std::shared_ptr<ModuleSystem::AdvancedRegistry> registry, 
                    std::unique_ptr<ModuleSystem::Nestedengine>& engine, 
                    const std::string& outputFile) {
@@ -602,7 +462,7 @@ void getConfigInfo(std::shared_ptr<ModuleSystem::AdvancedRegistry> registry,
     nlohmann::json preprocessingFactory;
     preprocessingFactory["name"] = "preprocessing_factory";
     preprocessingFactory["modules"] = nlohmann::json::array();
-    preprocessingFactory["executionType"] = "CHOOSE_ONE";
+    preprocessingFactory["executionType"] = "CHOOSE_ONE";  // 保持为多选一类型
     
     preprocessingFactory["modules"].push_back({
          {"name", "PreCGNS"},
@@ -616,7 +476,7 @@ void getConfigInfo(std::shared_ptr<ModuleSystem::AdvancedRegistry> registry,
     nlohmann::json solverFactory;
     solverFactory["name"] = "solver_factory";
     solverFactory["modules"] = nlohmann::json::array();
-    solverFactory["executionType"] = "CHOOSE_ONE";
+    solverFactory["executionType"] = "SEQUENTIAL_EXECUTION";  // 改为按顺序执行
     
     // 添加所有与求解相关的模块到 solver_factory
     solverFactory["modules"].push_back({
@@ -631,19 +491,11 @@ void getConfigInfo(std::shared_ptr<ModuleSystem::AdvancedRegistry> registry,
         {"name", "SSTSolver"},
         {"enabled", true}});
     
-    // 3. 不再单独使用turbulenceFactory（或将其用于其他用途）
-    nlohmann::json turbulenceFactory;
-    turbulenceFactory["name"] = "turbulence_factory";
-    turbulenceFactory["modules"] = nlohmann::json::array();
-    turbulenceFactory["executionType"] = "CHOOSE_ONE";
-    
-    // 可以将一些模块保留在turbulence_factory中用于其他用途
-    
-    // 4. 后处理工厂 - 对应 Post 引擎
+    // 3. 后处理工厂 - 对应 Post 引擎，修改为按顺序执行
     nlohmann::json postFactory;
     postFactory["name"] = "post_factory";
     postFactory["modules"] = nlohmann::json::array();
-    postFactory["executionType"] = "CHOOSE_ONE";
+    postFactory["executionType"] = "SEQUENTIAL_EXECUTION";  // 改为按顺序执行
 
     postFactory["modules"].push_back({
          {"name", "PostCGNS"},
@@ -656,7 +508,6 @@ void getConfigInfo(std::shared_ptr<ModuleSystem::AdvancedRegistry> registry,
     // 添加所有工厂到配置
     moduleFactories.push_back(preprocessingFactory);
     moduleFactories.push_back(solverFactory);
-    moduleFactories.push_back(turbulenceFactory);
     moduleFactories.push_back(postFactory);
     
     configInfo["moduleFactories"] = moduleFactories;
@@ -921,9 +772,6 @@ bool engineExecutionengine::executeengine(const std::string& engineName) {
         }
     }
     
-
-
-
     std::cout << "完成 " << engineName << std::endl;
     visitedengines_.erase(engineName);
     return true;
@@ -979,199 +827,425 @@ void ModuleFactoryCollection::initializeFactoriesFromConfig(const nlohmann::json
     }
 }
 
-// 初始化静态工厂池
-void ModuleFactoryCollection::initializeStaticFactoryPool(const nlohmann::json& factoryPool) {
-    staticFactoryPool_ = factoryPool;
-    factoryExecutionConfigs_.clear();
+bool paramValidation(const nlohmann::json& config) {
+    // 清除之前的配置
+    ConfigurationStorage::instance().clear();
     
-    // 解析每个工厂的执行逻辑
-    for (const auto& factory : factoryPool) {
-        if (factory.contains("name") && factory.contains("executionType")) {
-            std::string factoryName = factory["name"];
-            std::string executionTypeStr = factory["executionType"];
-            
-            FactoryExecutionConfig config;
-            
-            if (executionTypeStr == "CHOOSE_ONE") {
-                config.type = FactoryExecutionType::CHOOSE_ONE;
-            } else if (executionTypeStr == "SEQUENTIAL_AND_CHOOSE") {
-                config.type = FactoryExecutionType::SEQUENTIAL_AND_CHOOSE;
-                config.firstModule = factory.value("firstModule", "");
-                
-                if (factory.contains("remainingModules") && factory["remainingModules"].is_array()) {
-                    for (const auto& module : factory["remainingModules"]) {
-                        config.remainingModules.push_back(module);
-                    }
-                }
-            } else if (executionTypeStr == "CHOOSE_ONE_AGAIN") {
-                config.type = FactoryExecutionType::CHOOSE_ONE_AGAIN;
-            } else {
-                // 默认为CHOOSE_ONE
-                config.type = FactoryExecutionType::CHOOSE_ONE;
-            }
-            
-            factoryExecutionConfigs_[factoryName] = config;
-        }
-    }
-}
-
-// 获取静态工厂执行配置
-FactoryExecutionConfig ModuleFactoryCollection::getFactoryExecutionConfig(const std::string& factoryName) {
-    auto it = factoryExecutionConfigs_.find(factoryName);
-    if (it != factoryExecutionConfigs_.end()) {
-        return it->second;
-    }
+    // 初始化注册表和引擎
+    ConfigurationStorage::instance().initializeRegistryAndEngine();
+    auto& storage = ConfigurationStorage::instance();
     
-    // 默认返回CHOOSE_ONE类型的配置
-    FactoryExecutionConfig defaultConfig;
-    defaultConfig.type = FactoryExecutionType::CHOOSE_ONE;
-    return defaultConfig;
-}
-
-void runWithConfig(const nlohmann::json& config, const std::string& outputFile) {
-    std::string outputConfigFile = outputFile.empty() ? "config_.json" : outputFile;
-
-    auto registry = std::make_shared<ModuleSystem::AdvancedRegistry>();
-    auto engine = std::make_unique<ModuleSystem::Nestedengine>(*registry);
-
-    nlohmann::json moduleConfig;
-    nlohmann::json globalParams;
+    // 存储整个配置
+    storage.config = config;
     
-    // 定义已知模块集合
+    // 收集已知模块集合
     std::unordered_set<std::string> knownModules;
     for (const auto& moduleType : ModuleSystem::ModuleTypeRegistry::instance().getModuleTypes()) {
         knownModules.insert(moduleType.name);
     }
-    try {
-        // 1. 初始化模块工厂集合
-        ModuleFactoryCollection::instance().initializeFactoriesFromConfig(config);
-        
-        // 2. 初始化引擎与工厂的绑定关系
-        engine->initializeEngineFactoryBindings(config);
-                // 在注册模块之前验证引擎和工厂绑定与使用的模块的兼容性
-        if (config.contains("engineFactoryBindings") && config.contains("moduleFactories")) {
-            // 创建工厂到模块的映射
-            std::unordered_map<std::string, std::unordered_set<std::string>> factoryToModules;
-            
-            // 首先收集每个工厂中包含的模块
-            for (const auto& factory : config["moduleFactories"]) {
-                if (!factory.contains("name") || !factory.contains("modules")) continue;
-                
-                std::string factoryName = factory["name"];
-                std::unordered_set<std::string> modules;
-                
-                for (const auto& module : factory["modules"]) {
-                    if (!module.contains("name") || !module.contains("enabled")) continue;
-                    if (module["enabled"]) {
-                        modules.insert(module["name"]);
-                    }
-                }
-                
-                factoryToModules[factoryName] = modules;
+    storage.knownModules = knownModules;
+
+    // 存储模块参数模式
+    std::unordered_map<std::string, nlohmann::json> moduleParamSchemas;
+    for (const auto& moduleType : ModuleSystem::ModuleTypeRegistry::instance().getModuleTypes()) {
+        moduleParamSchemas[moduleType.name] = moduleType.getParamSchemaFunc();
+    }
+
+    // 验证工厂定义
+    if (config.contains("moduleFactories")) {
+        std::unordered_set<std::string> factoryNames;
+        for (const auto& factory : config["moduleFactories"]) {
+            if (!factory.contains("name")) {
+                std::cerr << "工厂定义错误: 缺少工厂名称" << std::endl;
+                return false;
             }
             
-            // 收集引擎到工厂的映射
-            std::unordered_map<std::string, std::string> engineToFactory;
-            for (const auto& binding : config["engineFactoryBindings"]) {
-                if (!binding.contains("engineName") || !binding.contains("factoryName")) continue;
-                
-                engineToFactory[binding["engineName"]] = binding["factoryName"];
+            std::string factoryName = factory["name"];
+            if (!factoryNames.insert(factoryName).second) {
+                std::cerr << "工厂定义错误: 发现重复的工厂名称 '" << factoryName << "'" << std::endl;
+                return false;
             }
             
-            // 检查每个引擎使用的模块是否属于其绑定的工厂
-            if (config["engine"].contains("enginePool")) {
-                for (const auto& engineDef : config["engine"]["enginePool"]) {
-                    if (!engineDef.contains("name") || !engineDef["enabled"].get<bool>()) continue;
-                    
-                    std::string engineName = engineDef["name"];
-                    std::string boundFactoryName = "default"; // 默认工厂
-                    
-                    // 获取引擎绑定的工厂
-                    if (engineToFactory.count(engineName)) {
-                        boundFactoryName = engineToFactory[engineName];
+            // 验证执行逻辑
+            if (!factory.contains("executionType")) {
+                std::cerr << "工厂定义错误: 工厂 '" << factoryName << "' 缺少执行逻辑定义" << std::endl;
+                return false;
+            }
+
+            std::string executionType = factory["executionType"];
+            if (executionType != "CHOOSE_ONE" && executionType != "SEQUENTIAL_EXECUTION") {
+                std::cerr << "工厂定义错误: 工厂 '" << factoryName << "' 使用了无效的执行逻辑类型 '" << executionType << "'" << std::endl;
+                return false;
+            }
+
+            // 如果是SEQUENTIAL_EXECUTION类型，验证firstModule和executionOrder（如果存在）
+            if (executionType == "SEQUENTIAL_EXECUTION") {
+                if (factory.contains("firstModule")) {
+                    if (!factory["firstModule"].is_string()) {
+                        std::cerr << "工厂定义错误: 工厂 '" << factoryName << "' 的firstModule必须是字符串" << std::endl;
+                        return false;
                     }
                     
-                    // 检查引擎使用的模块
-                    if (engineDef.contains("modules") && engineDef["modules"].is_array()) {
-                        for (const auto& moduleInfo : engineDef["modules"]) {
-                            if (!moduleInfo.contains("name") || !moduleInfo.contains("enabled")) continue;
-                            if (moduleInfo["enabled"]) {
-                                std::string moduleName = moduleInfo["name"];
-                                
-                                // 如果工厂是默认工厂"default"，任何模块都可以使用
-                                if (boundFactoryName != "default") {
-                                    // 检查模块是否在绑定的工厂中
-                                    if (!factoryToModules[boundFactoryName].count(moduleName)) {
-                                        std::cerr << "错误: 引擎 '" << engineName 
-                                                  << "' 尝试使用不属于其绑定工厂 '" << boundFactoryName 
-                                                  << "' 的模块 '" << moduleName << "'" << std::endl;
-                                        // 退出程序或抛出异常
-                                        throw std::runtime_error("引擎与工厂绑定检查失败");
-                                    }
-                                }
-                            }
+                    // 验证firstModule是否是有效模块
+                    std::string firstModule = factory["firstModule"];
+                    bool moduleExists = false;
+                    for (const auto& module : factory["modules"]) {
+                        if (module.contains("name") && module["name"] == firstModule) {
+                            moduleExists = true;
+                            break;
                         }
                     }
-                }
-            }
-        }
-        // 验证配置中的工厂定义有效性
-        if (config.contains("moduleFactories")) {
-            std::unordered_set<std::string> factoryNames;
-            for (const auto& factory : config["moduleFactories"]) {
-                if (!factory.contains("name")) {
-                    throw std::runtime_error("工厂定义错误: 缺少工厂名称");
+                    
+                    if (!moduleExists) {
+                        std::cerr << "工厂定义错误: 工厂 '" << factoryName << "' 的firstModule '" << firstModule << "' 不在工厂模块列表中" << std::endl;
+                        return false;
+                    }
                 }
                 
-                std::string factoryName = factory["name"];
-                if (!factoryNames.insert(factoryName).second) {
-                    throw std::runtime_error("工厂定义错误: 发现重复的工厂名称 '" + factoryName + "'");
-                }
-                
-                // 验证工厂中的模块是否是已知模块
-                if (factory.contains("modules")) {
+                if (factory.contains("executionOrder") && factory["executionOrder"].is_array()) {
+                    std::unordered_set<std::string> moduleNames;
                     for (const auto& module : factory["modules"]) {
-                        if (!module.contains("name")) {
-                            throw std::runtime_error("模块定义错误: 工厂 '" + factoryName + "' 中的模块缺少名称");
+                        if (module.contains("name")) {
+                            moduleNames.insert(module["name"]);
+                        }
+                    }
+                    
+                    for (const auto& moduleName : factory["executionOrder"]) {
+                        if (!moduleName.is_string()) {
+                            std::cerr << "工厂定义错误: 工厂 '" << factoryName << "' 的executionOrder中必须都是字符串" << std::endl;
+                            return false;
                         }
                         
-                        std::string moduleName = module["name"];
-                        if (knownModules.find(moduleName) == knownModules.end()) {
-                            throw std::runtime_error("工厂定义错误: 工厂 '" + factoryName + "' 中包含未知模块 '" + moduleName + "'");
+                        if (moduleNames.find(moduleName) == moduleNames.end()) {
+                            std::cerr << "工厂定义错误: 工厂 '" << factoryName << "' 的executionOrder中的模块 '" 
+                                << moduleName.get<std::string>() << "' 不在工厂模块列表中" << std::endl;
                         }
                     }
                 }
             }
             
-            // 验证引擎与工厂绑定是否有效
-            if (config.contains("engineFactoryBindings")) {
-                for (const auto& binding : config["engineFactoryBindings"]) {
-                    if (!binding.contains("engineName") || !binding.contains("factoryName")) {
-                        throw std::runtime_error("引擎工厂绑定错误: 缺少引擎名称或工厂名称");
+            // 验证工厂中的模块是否是已知模块
+            if (factory.contains("modules")) {
+                for (const auto& module : factory["modules"]) {
+                    if (!module.contains("name")) {
+                        std::cerr << "模块定义错误: 工厂 '" << factoryName << "' 中的模块缺少名称" << std::endl;
+                        return false;
                     }
                     
-                    std::string factoryName = binding["factoryName"];
-                    if (factoryName != "default" && factoryNames.find(factoryName) == factoryNames.end()) {
-                        throw std::runtime_error("引擎工厂绑定错误: 引用了未定义的工厂 '" + factoryName + "'");
-                    }
-                    
-                    std::string engineName = binding["engineName"];
-                    bool engineFound = false;
-                    if (config.contains("engine") && config["engine"].contains("enginePool")) {
-                        for (const auto& eng : config["engine"]["enginePool"]) {
-                            if (eng.contains("name") && eng["name"] == engineName) {
-                                engineFound = true;
-                                break;
-                            }
-                        }
-                    }
-                    
-                    if (!engineFound) {
-                        throw std::runtime_error("引擎工厂绑定错误: 引用了未定义的引擎 '" + engineName + "'");
+                    std::string moduleName = module["name"];
+                    if (knownModules.find(moduleName) == knownModules.end()) {
+                        std::cerr << "工厂定义错误: 工厂 '" << factoryName << "' 中包含未知模块 '" << moduleName << "'" << std::endl;
+                        return false;
                     }
                 }
             }
         }
+    }
+    
+    // 验证引擎定义和引擎名称
+    std::unordered_set<std::string> engineNames;
+    if (config.contains("engine") && config["engine"].contains("enginePool")) {
+        for (const auto& engine : config["engine"]["enginePool"]) {
+            if (!engine.contains("name")) {
+                std::cerr << "引擎定义错误: 缺少引擎名称" << std::endl;
+                return false;
+            }
+            
+            std::string engineName = engine["name"];
+            if (!engineNames.insert(engineName).second) {
+                std::cerr << "引擎定义错误: 发现重复的引擎名称 '" << engineName << "'" << std::endl;
+                return false;
+            }
+            
+            // 验证引擎的模块参数
+            if (engine.contains("modules") && engine["modules"].is_array()) {
+                for (const auto& moduleInfo : engine["modules"]) {
+                    if (!moduleInfo.contains("name")) {
+                        std::cerr << "引擎 '" << engineName << "' 中的模块定义错误: 缺少模块名称" << std::endl;
+                        return false;
+                    }
+                    
+                    std::string moduleName = moduleInfo["name"];
+                    
+                    // 验证模块是否存在
+                    if (knownModules.find(moduleName) == knownModules.end()) {
+                        std::cerr << "引擎 '" << engineName << "' 中包含未知模块 '" << moduleName << "'" << std::endl;
+                        return false;
+                    }
+                    
+                    // 验证模块参数（如果提供了params）
+                    if (moduleInfo.contains("params")) {
+                        if (!moduleInfo["params"].is_object()) {
+                            std::cerr << "引擎 '" << engineName << "' 中模块 '" << moduleName << "' 的参数必须是对象" << std::endl;
+                            return false;
+                        }
+                        
+                        // 检查模块参数是否符合模式
+                        const nlohmann::json& params = moduleInfo["params"];
+                        const nlohmann::json& paramSchema = moduleParamSchemas[moduleName];
+                        
+                        for (auto it = params.begin(); it != params.end(); ++it) {
+                            const std::string& paramName = it.key();
+                            const nlohmann::json& paramValue = it.value();
+                            
+                            if (!paramSchema.contains(paramName)) {
+                                std::cerr << "引擎 '" << engineName << "' 中模块 '" << moduleName 
+                                          << "' 的未知参数: '" << paramName << "'" << std::endl;
+                                return false;
+                            }
+                            
+                            // 验证参数值
+                            std::string errorMsg = validateParam(paramSchema[paramName], paramValue);
+                            if (!errorMsg.empty()) {
+                                std::cerr << "引擎 '" << engineName << "' 中模块 '" << moduleName 
+                                          << "' 的参数 '" << paramName << "' 验证失败: " << errorMsg << std::endl;
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 添加对子引擎存在性的验证
+        for (const auto& engine : config["engine"]["enginePool"]) {
+            if (engine.contains("subenginePool") && engine["subenginePool"].is_array()) {
+                std::string parentEngineName = engine["name"];
+                for (const auto& subEngineJson : engine["subenginePool"]) {
+                    if (!subEngineJson.is_string()) {
+                        std::cerr << "引擎定义错误: 引擎 '" << parentEngineName 
+                                  << "' 的子引擎必须是字符串" << std::endl;
+                        return false;
+                    }
+                    
+                    std::string subEngineName = subEngineJson.get<std::string>();
+                    if (engineNames.find(subEngineName) == engineNames.end()) {
+                        std::cerr << "错误: 子引擎 '" << subEngineName << "' 未在配置中定义" << std::endl;
+                        return false;
+                    }
+                }
+            }
+        }
+    } else {
+        std::cerr << "配置错误: 缺少引擎定义" << std::endl;
+        return false;
+    }
+    
+    // 从配置中提取参数
+    if (config.contains("config")) {
+        nlohmann::json moduleConfig;
+        nlohmann::json globalParams;
+        
+        for (auto& [key, value] : config["config"].items()) {
+            if (value.is_object()) {
+                moduleConfig[key] = value;
+                
+                // 验证模块配置参数
+                if (knownModules.find(key) != knownModules.end()) {
+                    const nlohmann::json& moduleParams = value;
+                    const nlohmann::json& paramSchema = moduleParamSchemas[key];
+                    
+                    // 检查模块的每个参数
+                    for (auto it = moduleParams.begin(); it != moduleParams.end(); ++it) {
+                        const std::string& paramName = it.key();
+                        const nlohmann::json& paramValue = it.value();
+                        
+                        // 检查参数是否在模式中定义
+                        if (!paramSchema.contains(paramName)) {
+                            std::cerr << "模块 '" << key << "' 的未知参数: '" << paramName << "'" << std::endl;
+                            return false;
+                        }
+                        
+                        // 验证参数值
+                        std::string errorMsg = validateParam(paramSchema[paramName], paramValue);
+                        if (!errorMsg.empty()) {
+                            std::cerr << "模块 '" << key << "' 的参数 '" << paramName 
+                                      << "' 验证失败: " << errorMsg << std::endl;
+                            return false;
+                        }
+                    }
+                    
+                    // 检查是否缺少必需的参数
+                    for (auto it = paramSchema.begin(); it != paramSchema.end(); ++it) {
+                        const std::string& paramName = it.key();
+                        const nlohmann::json& paramInfo = it.value();
+                        
+                        if (paramInfo.contains("required") && paramInfo["required"].get<bool>() && 
+                            !moduleParams.contains(paramName)) {
+                            std::cerr << "模块 '" << key << "' 缺少必需参数: '" << paramName << "'" << std::endl;
+                            return false;
+                        }
+                    }
+                }
+            }
+            else {
+                // 这是全局参数
+                globalParams[key] = value;
+                
+                // 验证全局参数的合理值（如果有特定要求）
+                if (key == "maxIterations") {
+                    if (!value.is_number_integer()) {
+                        std::cerr << "全局参数 'maxIterations' 必须是整数" << std::endl;
+                        return false;
+                    }
+                    int maxIter = value.get<int>();
+                    if (maxIter <= 0 || maxIter > 1000000) {
+                        std::cerr << "全局参数 'maxIterations' 的值必须在范围 [1, 1000000] 内，当前值为 " 
+                                  << maxIter << std::endl;
+                        return false;
+                    }
+                }
+                else if (key == "convergenceCriteria") {
+                    if (!value.is_number()) {
+                        std::cerr << "全局参数 'convergenceCriteria' 必须是数值" << std::endl;
+                        return false;
+                    }
+                    double criteria = value.get<double>();
+                    if (criteria <= 0 || criteria > 1) {
+                        std::cerr << "全局参数 'convergenceCriteria' 的值必须在范围 (0, 1] 内，当前值为 " 
+                                  << criteria << std::endl;
+                        return false;
+                    }
+                }
+                else if (key == "time_step") {
+                    if (!value.is_number()) {
+                        std::cerr << "全局参数 'time_step' 必须是数值" << std::endl;
+                        return false;
+                    }
+                    double timeStep = value.get<double>();
+                    if (timeStep <= 0) {
+                        std::cerr << "全局参数 'time_step' 必须是正数，当前值为 " << timeStep << std::endl;
+                        return false;
+                    }
+                }
+                else if (key == "solver") {
+                    if (!value.is_string()) {
+                        std::cerr << "全局参数 'solver' 必须是字符串" << std::endl;
+                        return false;
+                    }
+                    
+                    // 检查求解器类型是否是允许的枚举值
+                    std::string solver = value.get<std::string>();
+                    const std::unordered_set<std::string> allowedSolvers = {"SIMPLE", "PISO", "PIMPLE", "Coupled"};
+                    if (allowedSolvers.find(solver) == allowedSolvers.end()) {
+                        std::cerr << "全局参数 'solver' 的值必须是以下之一: ";
+                        bool first = true;
+                        for (const auto& s : allowedSolvers) {
+                            if (!first) std::cerr << ", ";
+                            std::cerr << "'" << s << "'";
+                            first = false;
+                        }
+                        std::cerr << "，当前值为 '" << solver << "'" << std::endl;
+                        return false;
+                    }
+                }
+            }
+        }
+        
+        // 存储提取的参数
+        storage.moduleConfig = moduleConfig;
+        storage.globalParams = globalParams;
+    } else {
+        // config节点是可选的，但我们应该至少警告一下
+        std::cout << "警告: 配置中没有 'config' 节点，使用默认参数" << std::endl;
+        storage.moduleConfig = nlohmann::json::object();
+        storage.globalParams = nlohmann::json::object();
+    }
+    
+    // 收集启用的模块
+    std::unordered_set<std::string> enabledModules;
+    if (config["registry"].contains("modules")) {
+        for (const auto& module : config["registry"]["modules"]) {
+            if (module.contains("name") && module.contains("enabled")) {
+                std::string moduleName = module["name"].get<std::string>();
+                bool isEnabled = module["enabled"].get<bool>();
+                if (knownModules.count(moduleName) && isEnabled) {
+                    enabledModules.insert(moduleName);
+                }
+            } else {
+                std::cerr << "模块注册表错误: 模块定义必须包含 'name' 和 'enabled' 属性" << std::endl;
+                return false;
+            }
+        }
+    } else {
+        std::cerr << "配置错误: 缺少模块注册表" << std::endl;
+        return false;
+    }
+    storage.enabledModules = enabledModules;
+    
+    // 验证所有引用的模块是否在注册表中并启用
+    for (const auto& engineDef : config["engine"]["enginePool"]) {
+        if (!engineDef.contains("name") || !engineDef["enabled"].get<bool>()) continue;
+        
+        if (engineDef.contains("modules") && engineDef["modules"].is_array()) {
+            for (const auto& moduleInfo : engineDef["modules"]) {
+                if (!moduleInfo.contains("name") || !moduleInfo["enabled"].get<bool>()) continue;
+                
+                std::string moduleName = moduleInfo["name"];
+                if (enabledModules.find(moduleName) == enabledModules.end()) {
+                    std::cerr << "错误: 引擎 '" << engineDef["name"] 
+                              << "' 引用了未在注册表中启用的模块 '" << moduleName << "'" << std::endl;
+                    return false;
+                }
+            }
+        }
+    }
+    
+    // 收集需要的引擎名称
+    std::unordered_set<std::string> usedEngineNames;
+    if (config["engine"].contains("enginePool")) {
+        for (const auto& Engine : config["engine"]["enginePool"]) {
+            if (!Engine.contains("name") || !Engine["enabled"].get<bool>()) continue;
+            usedEngineNames.insert(Engine["name"].get<std::string>());
+        }
+    }
+    storage.usedEngineNames = usedEngineNames;
+    
+    // 验证引擎与工厂绑定是否有效
+    if (config.contains("moduleFactories") && config.contains("engineFactoryBindings")) {
+        std::unordered_set<std::string> factoryNames;
+        for (const auto& factory : config["moduleFactories"]) {
+            if (factory.contains("name")) {
+                factoryNames.insert(factory["name"]);
+            }
+        }
+        
+        for (const auto& binding : config["engineFactoryBindings"]) {
+            if (!binding.contains("engineName") || !binding.contains("factoryName")) {
+                std::cerr << "引擎工厂绑定错误: 绑定必须包含 'engineName' 和 'factoryName' 属性" << std::endl;
+                return false;
+            }
+            
+            std::string factoryName = binding["factoryName"];
+            if (factoryName != "default" && factoryNames.find(factoryName) == factoryNames.end()) {
+                std::cerr << "引擎工厂绑定错误: 引用了未定义的工厂 '" << factoryName << "'" << std::endl;
+                return false;
+            }
+            
+            std::string engineName = binding["engineName"];
+            bool engineFound = false;
+            if (config.contains("engine") && config["engine"].contains("enginePool")) {
+                for (const auto& engDef : config["engine"]["enginePool"]) {
+                    if (engDef.contains("name") && engDef["name"] == engineName) {
+                        engineFound = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (!engineFound) {
+                std::cerr << "引擎工厂绑定错误: 引用了未定义的引擎 '" << engineName << "'" << std::endl;
+                return false;
+            }
+        }
+    } else if (!config.contains("engineFactoryBindings")) {
+        std::cerr << "配置错误: 缺少引擎工厂绑定定义" << std::endl;
+        return false;
+    }
+    
+    // 验证模块兼容性
+    if (config.contains("engineFactoryBindings") && config.contains("moduleFactories") && 
+        config.contains("engine") && config["engine"].contains("enginePool")) {
         // 创建工厂到模块的映射
         std::unordered_map<std::string, std::unordered_set<std::string>> factoryToModules;
         
@@ -1201,389 +1275,391 @@ void runWithConfig(const nlohmann::json& config, const std::string& outputFile) 
         }
         
         // 检查每个引擎使用的模块是否属于其绑定的工厂
-        if (config["engine"].contains("enginePool")) {
-            for (const auto& engineDef : config["engine"]["enginePool"]) {
-                if (!engineDef.contains("name") || !engineDef["enabled"].get<bool>()) continue;
-                
-                std::string engineName = engineDef["name"];
-                std::string boundFactoryName = "default"; // 默认工厂
-                
-                // 获取引擎绑定的工厂
-                if (engineToFactory.count(engineName)) {
-                    boundFactoryName = engineToFactory[engineName];
+        for (const auto& engineDef : config["engine"]["enginePool"]) {
+            if (!engineDef.contains("name") || !engineDef.contains("enabled") || 
+                !engineDef["enabled"].get<bool>()) continue;
+            
+            std::string engineName = engineDef["name"];
+            std::string boundFactoryName = "default"; // 默认工厂
+            
+            // 获取引擎绑定的工厂
+            if (engineToFactory.count(engineName)) {
+                boundFactoryName = engineToFactory[engineName];
+            }
+            
+            // 检查引擎使用的模块
+            if (engineDef.contains("modules") && engineDef["modules"].is_array()) {
+                for (const auto& moduleInfo : engineDef["modules"]) {
+                    if (!moduleInfo.contains("name") || 
+                        (moduleInfo.contains("enabled") && !moduleInfo["enabled"].get<bool>())) continue;
+                    
+                    std::string moduleName = moduleInfo["name"];
+                    
+                    // 如果工厂是默认工厂"default"，任何模块都可以使用
+                    if (boundFactoryName != "default" && factoryToModules.count(boundFactoryName)) {
+                        // 检查模块是否在绑定的工厂中
+                        if (!factoryToModules[boundFactoryName].count(moduleName)) {
+                            std::cerr << "错误: 引擎 '" << engineName 
+                                      << "' 尝试使用不属于其绑定工厂 '" << boundFactoryName 
+                                      << "' 的模块 '" << moduleName << "'" << std::endl;
+                            return false;
+                        }
+                    }
                 }
+            }
+        }
+
+        // 新增：验证工厂类型为CHOOSE_ONE时，同一工厂的多个模块不能在同一引擎中同时启用
+        std::unordered_map<std::string, std::string> factoryExecutionTypes;
+        for (const auto& factory : config["moduleFactories"]) {
+            if (!factory.contains("name") || !factory.contains("executionType")) continue;
+            
+            std::string factoryName = factory["name"];
+            std::string executionType = factory["executionType"];
+            factoryExecutionTypes[factoryName] = executionType;
+        }
+        
+        for (const auto& engineDef : config["engine"]["enginePool"]) {
+            if (!engineDef.contains("name") || !engineDef.contains("enabled") || 
+                !engineDef["enabled"].get<bool>()) continue;
+            
+            std::string engineName = engineDef["name"];
+            std::string boundFactoryName = "default";
+            
+            // 获取引擎绑定的工厂
+            if (engineToFactory.count(engineName)) {
+                boundFactoryName = engineToFactory[engineName];
+            }
+            
+            // 如果工厂类型是CHOOSE_ONE，检查该引擎中启用的模块数量
+            if (boundFactoryName != "default" && 
+                factoryExecutionTypes.count(boundFactoryName) && 
+                factoryExecutionTypes[boundFactoryName] == "CHOOSE_ONE") {
                 
-                // 检查引擎使用的模块
+                // 收集该引擎中所有启用的模块
+                std::vector<std::string> enabledModulesInEngine;
+                
                 if (engineDef.contains("modules") && engineDef["modules"].is_array()) {
                     for (const auto& moduleInfo : engineDef["modules"]) {
-                        if (!moduleInfo.contains("name") || !moduleInfo["enabled"].get<bool>()) continue;
-                        
-                        std::string moduleName = moduleInfo["name"];
-                        
-                        // 如果工厂是默认工厂"default"，任何模块都可以使用
-                        if (boundFactoryName != "default") {
-                            // 检查模块是否在绑定的工厂中
-                            if (!factoryToModules[boundFactoryName].count(moduleName)) {
-                                std::cerr << "错误: 引擎 '" << engineName 
-                                            << "' 尝试使用不属于其绑定工厂 '" << boundFactoryName 
-                                            << "' 的模块 '" << moduleName << "'" << std::endl;
-                                // 退出程序或抛出异常
-                                throw std::runtime_error("引擎与工厂绑定检查失败");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (config.contains("config")) {
-            for (auto& [key, value] : config["config"].items()) {
-                if (value.is_object()) moduleConfig[key] = value;
-                else globalParams[key] = value;
-            }
-        }
-
-        std::unordered_set<std::string> knownModules;
-        for (const auto& moduleType : ModuleSystem::ModuleTypeRegistry::instance().getModuleTypes()) {
-            knownModules.insert(moduleType.name);
-        }
-
-        std::unordered_set<std::string> moduleNamesCheck;
-        if (config["registry"].contains("modules")) {
-            for (const auto& module : config["registry"]["modules"]) {
-                if (module.contains("name")) {
-                    std::string moduleName = module["name"];
-                    if (!moduleNamesCheck.insert(moduleName).second) { // 检查重复
-                        std::cerr << "错误: 发现重复的模块名称: " << moduleName << std::endl;
-                        return;
-                    }
-                    if (knownModules.find(moduleName) == knownModules.end()) {
-                        std::cerr << "错误: 配置文件包含未知模块: " << moduleName << std::endl;
-                        return;
-                    }
-                }
-            }
-        }
-
-        std::unordered_set<std::string> enabledModules;
-        if (config["registry"].contains("modules")) {
-            for (const auto& module : config["registry"]["modules"]) {
-                if (module.contains("name") && module.contains("enabled")) {
-                    std::string moduleName = module["name"].get<std::string>();
-                    bool isEnabled = module["enabled"].get<bool>();
-                    if (knownModules.count(moduleName) && isEnabled) {
-                        enabledModules.insert(moduleName);
-                    } else if (!isEnabled) {
-                        std::cout << "模块 " << moduleName << " 已禁用，不会被注册" << std::endl;
-                    }
-                }
-            }
-        }
-        
-        std::unordered_set<std::string> EngineNamesCheck;
-        std::function<void(const nlohmann::json&)> collectEngineNames = 
-            [&](const nlohmann::json& Engines) {
-            if (!Engines.contains("enginePool")) return;
-            for (const auto& Engine : Engines["enginePool"]) {
-                if (!Engine.contains("name")) continue;
-                std::string EngineName = Engine["name"].get<std::string>();
-                if (!EngineNamesCheck.insert(EngineName).second) {
-                    std::cerr << "错误: 发现重复的引擎名称: " << EngineName << std::endl;
-                    return;
-                }
-            }
-        };
-        
-        collectEngineNames(config["engine"]);
-        if (EngineNamesCheck.empty()) {
-            std::cerr << "错误: 配置中未找到有效的引擎定义" << std::endl;
-            return;
-        }
-
-        std::unordered_set<std::string> validEnginePool;
-        if (config["engine"].contains("enginePool")) {
-            for (const auto& Engine : config["engine"]["enginePool"]) {
-                if (Engine.contains("name") && Engine["enabled"].get<bool>()) {
-                    std::string EngineName = Engine["name"].get<std::string>();
-                    validEnginePool.insert(EngineName);
-                    
-                    if (Engine.contains("subEnginePool")) {
-                        for (const auto& subEngine : Engine["subEnginePool"]) {
-                            std::string subEngineName = subEngine.get<std::string>();
-                            bool subEngineFound = false;
-                            for (const auto& otherEngine : config["Engine"]["EnginePool"]) {
-                                if (otherEngine.contains("name") && otherEngine["name"] == subEngineName) {
-                                    subEngineFound = true; break;
-                                }
-                            }
-                            if (!subEngineFound) {
-                                std::cerr << "错误: 引擎 '" << EngineName << "' 引用了未定义的子引擎 '" << subEngineName << "'" << std::endl;
-                                return;
-                            }
-                        }
-                    }
-                    
-                    if (Engine.contains("modules") && Engine["modules"].is_array()) {
-                        for (const auto& moduleInfo : Engine["modules"]) {
-                            if (!moduleInfo.contains("name")) {
-                                std::cerr << "错误: 引擎 '" << EngineName << "' 包含没有名称的模块定义" << std::endl;
-                                return;
-                            }
+                        if (moduleInfo.contains("name") && moduleInfo.contains("enabled") && 
+                            moduleInfo["enabled"].get<bool>()) {
                             
-                            // 如果模块禁用，则跳过对它的验证
-                            if (moduleInfo.contains("enabled") && !moduleInfo["enabled"].get<bool>()) {
-                                continue;
-                            }
+                            std::string moduleName = moduleInfo["name"];
                             
-                            const std::string& moduleName = moduleInfo["name"];
-                            if (enabledModules.find(moduleName) == enabledModules.end()) {
-                                std::cerr << "错误: 引擎 '" << EngineName 
-                                    << "' 使用了未启用或未知的模块 '" << moduleName << "'" << std::endl;
-                                return;
+                            // 检查模块是否属于绑定的工厂
+                            if (factoryToModules.count(boundFactoryName) && 
+                                factoryToModules[boundFactoryName].count(moduleName)) {
+                                enabledModulesInEngine.push_back(moduleName);
                             }
                         }
                     }
                 }
-            }
-        } else {
-            std::cerr << "错误: 配置中未找到 'EnginePool' 定义" << std::endl;
-            return;
-        }
-
-        // 检测循环依赖
-        std::unordered_map<std::string, std::vector<std::string>> engineDependencies;
-        
-        // 构建依赖图
-        for (const auto& engineDef : config["engine"]["enginePool"]) {
-            if (engineDef.contains("name") && engineDef.contains("subenginePool")) {
-                std::string engineName = engineDef["name"];
-                for (const auto& subengine : engineDef["subenginePool"]) {
-                    engineDependencies[engineName].push_back(subengine);
-                }
-            }
-        }
-        
-        std::function<bool(const std::string&, std::unordered_set<std::string>&, std::unordered_set<std::string>&)> 
-        detectCycle = [&](const std::string& current, 
-                        std::unordered_set<std::string>& visited, 
-                        std::unordered_set<std::string>& recStack) -> bool {
-            visited.insert(current);
-            recStack.insert(current);
-            
-            for (const auto& dep : engineDependencies[current]) {
-                if (!visited.count(dep)) {
-                    if (detectCycle(dep, visited, recStack)) {
-                        std::cerr << "发现循环依赖: " << current << " -> " << dep << std::endl;
-                        return true;
+                
+                // 如果启用的模块数量大于1，报错
+                if (enabledModulesInEngine.size() > 1) {
+                    std::cerr << "工厂验证错误: 引擎 '" << engineName 
+                              << "' 绑定了类型为CHOOSE_ONE的工厂 '" << boundFactoryName 
+                              << "'，但同时启用了该工厂中的多个模块: ";
+                    
+                    for (size_t i = 0; i < enabledModulesInEngine.size(); ++i) {
+                        if (i > 0) std::cerr << ", ";
+                        std::cerr << "'" << enabledModulesInEngine[i] << "'";
                     }
-                } else if (recStack.count(dep)) {
-                    std::cerr << "发现循环依赖: " << current << " -> " << dep << std::endl;
-                    return true;
-                }
-            }
-            
-            recStack.erase(current);
-            return false;
-        };
-        
-        // 遍历所有引擎检测循环
-        std::unordered_set<std::string> visited, recStack;
-        for (const auto& [engine, _] : engineDependencies) {
-            if (!visited.count(engine)) {
-                if (detectCycle(engine, visited, recStack)) {
-                    return;
+                    std::cerr << std::endl;
+                    std::cerr << "对于CHOOSE_ONE类型的工厂，一个引擎中只能启用该工厂的一个模块" << std::endl;
+                    return false;
                 }
             }
         }
-        
-        // 检查mainProcess引擎是否存在且启用
-        bool hasMainProcess = false;
-        if (config["engine"].contains("enginePool")) {
-            for (const auto& Engine : config["engine"]["enginePool"]) {
-                if (Engine.contains("name") && Engine["name"] == "mainProcess" && Engine["enabled"].get<bool>()) {
-                    hasMainProcess = true; break;
-                }
-            }
-        }
-        
-        if (!hasMainProcess) {
-            std::cerr << "错误: 主引擎 'mainProcess' 不存在或已禁用" << std::endl;
-            return;
-        }
-        
-        // 保存实际使用的配置
-        std::cout << "开始执行引擎..." << std::endl;
-        
-        // 收集所有启用的模块
-        std::unordered_set<std::string> enabledModulesForSave;
-        if (config["registry"].contains("modules")) {
-            for (const auto& module : config["registry"]["modules"]) {
-                if (module.contains("name") && module.contains("enabled") && module["enabled"].get<bool>()) {
-                    enabledModulesForSave.insert(module["name"].get<std::string>());
-                }
-            }
-        }
-        
-        // 在引擎定义前收集需要的引擎名称
-        std::unordered_set<std::string> usedEngineNames;
-        if (config["engine"].contains("enginePool")) {
-            for (const auto& Engine : config["engine"]["enginePool"]) {
-                if (!Engine.contains("name") || !Engine["enabled"].get<bool>()) continue;
-                usedEngineNames.insert(Engine["name"].get<std::string>());
-            }
-        }
-        
-        // 根据使用的引擎名称和绑定关系，确定需要加载的模块工厂
-        // 把requiredFactories作为引用的引擎成员变量，执行config的时候把工厂和配置参数
-        std::unordered_set<std::string> requiredFactories;
-        for (const auto& engineName : usedEngineNames) {
-            std::string factoryName = engine->getEngineFactoryBinding(engineName);
-            requiredFactories.insert(factoryName);
-        }
-        
-        // 对每个需要的工厂，为registry注册相应模块
-        for (const auto& factoryName : requiredFactories) {
-            auto factory = ModuleFactoryCollection::instance().getFactory(factoryName);
-            
-            // 只注册这个工厂中包含且在enabledModules中的模块
-            for (const auto& moduleName : enabledModules) {
-                // 如果模块在当前工厂中注册，则添加到registry
-                if (factory->registerModule(registry.get(), moduleName)) {
-                    std::cout << "模块 " << moduleName << " 已从工厂 " << factoryName << " 注册" << std::endl;
-                }
-            }
-        }
-        
-        saveUsedConfig(moduleConfig, enabledModulesForSave, config["engine"], globalParams, outputConfigFile);
+    }
     
-        // 在这之后定义所有引擎
-        if (config["engine"].contains("enginePool")) {
-            for (const auto& EngineDef : config["engine"]["enginePool"]) {
-                if (!EngineDef.contains("name") || !EngineDef["enabled"].get<bool>()) continue;
-                std::string EngineName = EngineDef["name"].get<std::string>();
-
-                engine->defineengine(EngineName, 
-                    [EngineDef, EngineName, &config, &engine, &moduleConfig](ModuleSystem::engineContext& context) {
-                    std::cout << "开始 " << EngineName << std::endl;
-
-                    if (EngineDef.contains("subenginePool")) {
-                        for (const auto& subEngineJson : EngineDef["subenginePool"]) {
-                            std::string subEngineName = subEngineJson.get<std::string>();
-                            
-                            // 检查子引擎是否存在且是否被禁用
-                            bool engineExists = false;
-                            bool engineEnabled = false;
-                            
-                            // 查找子引擎定义
-                            for (const auto& engDef : config["engine"]["enginePool"]) {
-                                if (engDef.contains("name") && engDef["name"] == subEngineName) {
-                                    engineExists = true;
-                                    engineEnabled = engDef.value("enabled", true); // 默认为启用
-                                    break;
-                                }
-                            }
-                            
-                            // 如果引擎不存在，输出警告并继续
-                            if (!engineExists) {
-                                std::cerr << "错误: 子引擎 '" << subEngineName << "' 未在配置中定义" << std::endl;
-                                exit(1);
-                            }
-                            
-                            // 如果引擎被禁用，输出警告并继续
-                            if (!engineEnabled) {
-                                std::cout << "警告: 子引擎 '" << subEngineName << "' 已禁用，将跳过此引擎" << std::endl;
-                                continue;
-                            }
-                            
-                            try {
-                                engine->executeengine(subEngineName, context.shared_from_this());
-                            } catch (const std::exception& e) {
-                                std::cerr << "错误: 执行子引擎 '" << subEngineName << "' 时出错: " << e.what() << std::endl;
-                                exit(1);
-                            }
+    // 检查主进程引擎是否存在并启用
+    bool mainProcessExists = false;
+    for (const auto& engine : config["engine"]["enginePool"]) {
+        if (engine.contains("name") && engine["name"] == "mainProcess" && 
+            engine.contains("enabled") && engine["enabled"].get<bool>()) {
+            mainProcessExists = true;
+            break;
+        }
+    }
+    
+    if (!mainProcessExists) {
+        std::cerr << "错误: 主处理引擎 'mainProcess' 未定义或已禁用" << std::endl;
+        return false;
+    }
+    
+    // 检查是否存在循环依赖
+    std::function<bool(const std::string&, 
+                       std::unordered_set<std::string>&, 
+                       std::unordered_set<std::string>&, 
+                       const nlohmann::json&)> 
+    detectCycle = [&](const std::string& current, 
+                       std::unordered_set<std::string>& visited, 
+                       std::unordered_set<std::string>& inStack,
+                       const nlohmann::json& enginePool) -> bool {
+        visited.insert(current);
+        inStack.insert(current);
+        
+        // 查找当前引擎的子引擎
+        for (const auto& engine : enginePool) {
+            if (engine.contains("name") && engine["name"] == current &&
+                engine.contains("subenginePool") && engine["subenginePool"].is_array()) {
+                
+                for (const auto& subEngine : engine["subenginePool"]) {
+                    std::string subEngineName = subEngine.get<std::string>();
+                    
+                    if (inStack.count(subEngineName)) {
+                        std::cerr << "错误: 检测到循环依赖: " << current << " -> " << subEngineName << std::endl;
+                        return true; // 发现循环
+                    }
+                    
+                    if (!visited.count(subEngineName)) {
+                        if (detectCycle(subEngineName, visited, inStack, enginePool)) {
+                            return true;
                         }
                     }
-
-                    // 处理模块执行
-                    if (EngineDef.contains("modules") && EngineDef["modules"].is_array()) {
-                        // 按数组顺序执行模块
-                        for (const auto& moduleInfo : EngineDef["modules"]) {
-                            const std::string& moduleName = moduleInfo["name"];
-                            bool moduleEnabled = moduleInfo.value("enabled", true); // 默认启用
-                            
-                            // 如果模块禁用，则跳过
-                            if (!moduleEnabled) {
-                                std::cout << "跳过禁用的模块 '" << moduleName << "'" << std::endl;
-                                continue;
-                            }
-                            
-                            try {
-                                // 为模块准备参数
-                                nlohmann::json params = getEffectiveModuleParams(moduleConfig, moduleName, moduleInfo.contains("params") ? moduleInfo["params"] : nlohmann::json(nullptr));
-                                
-                                //把四个动作拆开，分4个引擎来调用同一类型的模块函数
-
-                                // 固定的模块生命周期：创建、初始化、执行、释放
-                                std::cout << "创建模块: " << moduleName << std::endl;
-                                context.createModule(moduleName, params);
-                                
-                                std::cout << "初始化模块: " << moduleName << std::endl;
-                                context.initializeModule(moduleName);
-                                
-                                std::cout << "执行模块: " << moduleName << std::endl;
-                                context.executeModule(moduleName);
-                                
-                                std::cout << "释放模块: " << moduleName << std::endl;
-                                context.releaseModule(moduleName);
-                            } catch (const std::exception& e) {
-                                std::cerr << "错误: 模块 '" << moduleName << "' 执行过程中出错: " << e.what() << std::endl;
-                                return;
-                            }
-                        }
-                    }
-                    std::cout << "完成 " << EngineName << std::endl;
-                });
-            }
-        }
-
-        if (config.contains("config")) engine->Build(config["config"]); // 使用"config"部分进行Build
-
-        // 创建主上下文
-        auto mainContext = std::make_shared<ModuleSystem::engineContext>(*registry, engine.get());
-        if (config.contains("config")) {
-            mainContext->setParameter("config", config["config"]); // 设置整个config块
-            for (auto& [key, value] : config["config"].items()) { // 以及单独的参数
-                if (!value.is_object()) mainContext->setParameter(key, value);
-            }
-            for (auto& [moduleName, params] : moduleConfig.items()) { // 以及模块特定的参数
-                mainContext->setParameter(moduleName, params);
-            }
-        }
-
-        // 执行主引擎
-        try {
-            engine->executeengine("mainProcess", mainContext);
-            
-            // 检查未释放的模块
-            auto leakedModules = registry->checkLeakedModules();
-            if (!leakedModules.empty()) {
-                std::cerr << "错误: 发现未释放的模块:" << std::endl;
-                for (const auto& module : leakedModules) {
-                    std::cerr << "  - " << module << std::endl;
                 }
-                std::cerr << "所有模块必须在程序结束前释放。请检查'release'工作流是否正确配置和执行。" << std::endl;
-                return;
+                
+                break;
+            }
+        }
+        
+        inStack.erase(current);
+        return false;
+    };
+    
+    // 检测每个引擎是否存在循环依赖
+    std::unordered_set<std::string> visited, inStack;
+    for (const auto& engine : config["engine"]["enginePool"]) {
+        if (!engine.contains("name")) continue;
+        
+        std::string engineName = engine["name"];
+        if (!visited.count(engineName)) {
+            if (detectCycle(engineName, visited, inStack, config["engine"]["enginePool"])) {
+                return false;
+            }
+        }
+    }
+    
+    /////////////////////////////////////////////////////////////////////////////
+    // 验证通过后，进行工厂模块加载、工厂和引擎绑定、模块注册和引擎定义
+    /////////////////////////////////////////////////////////////////////////////
+    
+    auto& registry = storage.registry;
+    auto& engine = storage.engine;
+    
+    // 1. 初始化模块工厂集合（从配置加载工厂定义）
+    ModuleFactoryCollection::instance().initializeFactoriesFromConfig(config);
+    
+    // 2. 初始化引擎与工厂的绑定关系
+    engine->initializeEngineFactoryBindings(config);
+    
+    // 3. 根据使用的引擎名称和绑定关系，确定需要加载的模块工厂
+    std::unordered_set<std::string> requiredFactories;
+    for (const auto& engineName : storage.usedEngineNames) {
+        std::string factoryName = engine->getEngineFactoryBinding(engineName);
+        requiredFactories.insert(factoryName);
+    }
+    storage.requiredFactories = requiredFactories;
+    
+    // 4. 对每个需要的工厂，为registry注册相应模块
+    for (const auto& factoryName : requiredFactories) {
+        auto factory = ModuleFactoryCollection::instance().getFactory(factoryName);
+        
+        // 只注册这个工厂中包含且在enabledModules中的模块
+        for (const auto& moduleName : storage.enabledModules) {
+            // 如果模块在当前工厂中注册，则添加到registry
+            if (factory->registerModule(registry.get(), moduleName)) {
+                std::cout << "模块 " << moduleName << " 已从工厂 " << factoryName << " 注册" << std::endl;
+            }
+        }
+    }
+    
+    // 5. 定义所有引擎
+    if (config["engine"].contains("enginePool")) {
+        for (const auto& EngineDef : config["engine"]["enginePool"]) {
+            if (!EngineDef.contains("name") || !EngineDef["enabled"].get<bool>()) continue;
+            std::string EngineName = EngineDef["name"].get<std::string>();
+
+            engine->defineengine(EngineName, 
+                [EngineDef, EngineName](ModuleSystem::engineContext& context) {
+                    // 创建engineExecutionEngine实例来处理这个引擎中的所有模块的执行
+                    engineExecutionengine executor(
+                        ConfigurationStorage::instance().config["engine"], 
+                        context
+                    );
+                    
+                    // 执行工作流
+                    executor.executeengine(EngineName);
+                });
+        }
+        storage.enginesAreDefined = true;
+    }
+    
+    // 6. 构建引擎
+    if (config.contains("config")) {
+        engine->Build(config["config"]); // 使用"config"部分进行Build
+    }
+    
+    // 7. 创建主上下文
+    storage.mainContext = std::make_shared<ModuleSystem::engineContext>(*registry, engine.get());
+    if (config.contains("config")) {
+        storage.mainContext->setParameter("config", config["config"]); // 设置整个config块
+        for (auto& [key, value] : config["config"].items()) { // 以及单独的参数
+            if (!value.is_object()) storage.mainContext->setParameter(key, value);
+        }
+        for (auto& [moduleName, params] : storage.moduleConfig.items()) { // 以及模块特定的参数
+            storage.mainContext->setParameter(moduleName, params);
+        }
+    }
+    
+    std::cout << "配置验证通过，模块注册完成" << std::endl;
+    return true;
+}
+
+void saveUsedConfig(const nlohmann::json& config, const std::string& outputFile) {
+    // 解析配置，提取需要的部分
+    nlohmann::json moduleConfig;
+    nlohmann::json globalParams;
+    
+    // 从配置中提取参数信息
+    if (config.contains("config")) {
+        for (auto& [key, value] : config["config"].items()) {
+            if (value.is_object()) moduleConfig[key] = value;
+            else globalParams[key] = value;
+        }
+    }
+    
+    // 确定启用的模块集合
+    std::unordered_set<std::string> enabledModulesForSave;
+    if (config["registry"].contains("modules")) {
+        for (const auto& module : config["registry"]["modules"]) {
+            if (module.contains("name") && module.contains("enabled") && module["enabled"].get<bool>()) {
+                enabledModulesForSave.insert(module["name"].get<std::string>());
+            }
+        }
+    }
+    
+    // 调用ModuleSystem中的保存函数
+    ModuleSystem::saveUsedConfig(moduleConfig, enabledModulesForSave, 
+                                config["engine"], globalParams, outputFile);
+}
+
+void run() {
+    auto& storage = ConfigurationStorage::instance();
+    
+    // 确保已完成参数验证和初始化
+    if (!storage.registry || !storage.engine || !storage.mainContext || !storage.enginesAreDefined) {
+        std::cerr << "错误: 请先运行 paramValidation 函数初始化环境" << std::endl;
+        return;
+    }
+    
+    // 直接执行主引擎，无需再做初始化工作
+    try {
+        storage.engine->executeengine("mainProcess", storage.mainContext);
+        
+        // 检查未释放的模块
+        auto leakedModules = storage.registry->checkLeakedModules();
+        if (!leakedModules.empty()) {
+            std::cerr << "错误: 发现未释放的模块:" << std::endl;
+            for (const auto& module : leakedModules) {
+                std::cerr << "  - " << module << std::endl;
+            }
+            std::cerr << "所有模块必须在程序结束前释放。请检查'release'工作流是否正确配置和执行。" << std::endl;
+        } else {
+            std::cout << "成功完成引擎执行" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "执行中发生错误: " << e.what() << std::endl;
+    }
+}
+
+void test() {
+    auto& storage = ConfigurationStorage::instance();
+    
+    // 确保已经初始化了注册表和引擎
+    if (!storage.registry || !storage.engine || !storage.mainContext || !storage.enginesAreDefined) {
+        std::cerr << "错误: 测试前请先运行 paramValidation 函数" << std::endl;
+        return;
+    }
+    
+    std::cout << "\n======== 开始模块手动测试 ========\n" << std::endl;
+    
+    // 测试手动调用模块
+    try {
+        // 测试一个预处理模块
+        if (storage.enabledModules.find("PreCGNS") != storage.enabledModules.end()) {
+            std::cout << "测试 PreCGNS 模块..." << std::endl;
+            
+            // 准备参数
+            nlohmann::json moduleParams;
+            if (storage.moduleConfig.contains("PreCGNS")) {
+                moduleParams = storage.moduleConfig["PreCGNS"];
+            } else {
+                moduleParams = {
+                    {"cgns_type", "HDF5"},
+                    {"cgns_value", 20}
+                };
             }
             
-            std::cout << "引擎执行完成" << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "错误：" << e.what() << std::endl;
-            return;
+            // 执行完整模块生命周期
+            void* moduleInstance = storage.mainContext->createModule("PreCGNS", moduleParams);
+            std::cout << " - 创建 PreCGNS 成功" << std::endl;
+            
+            storage.mainContext->initializeModule("PreCGNS");
+            std::cout << " - 初始化 PreCGNS 成功" << std::endl;
+            
+            storage.mainContext->executeModule("PreCGNS");
+            std::cout << " - 执行 PreCGNS 成功" << std::endl;
+            
+            storage.mainContext->releaseModule("PreCGNS");
+            std::cout << " - 释放 PreCGNS 成功" << std::endl;
         }
-
-        std::cout << "成功完成引擎执行" << std::endl;
+        
+        // 测试一个求解器模块
+        if (storage.enabledModules.find("EulerSolver") != storage.enabledModules.end()) {
+            std::cout << "\n测试 EulerSolver 模块..." << std::endl;
+            
+            // 准备参数
+            nlohmann::json moduleParams;
+            if (storage.moduleConfig.contains("EulerSolver")) {
+                moduleParams = storage.moduleConfig["EulerSolver"];
+            } else {
+                moduleParams = {
+                    {"euler_type", "Standard"},
+                    {"euler_value", 0.7}
+                };
+            }
+            
+            // 执行完整模块生命周期
+            void* moduleInstance = storage.mainContext->createModule("EulerSolver", moduleParams);
+            std::cout << " - 创建 EulerSolver 成功" << std::endl;
+            
+            storage.mainContext->initializeModule("EulerSolver");
+            std::cout << " - 初始化 EulerSolver 成功" << std::endl;
+            
+            storage.mainContext->executeModule("EulerSolver");
+            std::cout << " - 执行 EulerSolver 成功" << std::endl;
+            
+            storage.mainContext->releaseModule("EulerSolver");
+            std::cout << " - 释放 EulerSolver 成功" << std::endl;
+        }
+        
     } catch (const std::exception& e) {
-        std::cerr << "验证配置时发生错误: " << e.what() << std::endl;
+        std::cerr << "测试过程中发生错误: " << e.what() << std::endl;
+    }
+    
+    std::cout << "\n======== 模块手动测试结束 ========\n" << std::endl;
+    
+    // 检查是否有模块泄漏
+    auto leakedModules = storage.registry->checkLeakedModules();
+    if (!leakedModules.empty()) {
+        std::cerr << "测试后发现未释放的模块:" << std::endl;
+        for (const auto& module : leakedModules) {
+            std::cerr << "  - " << module << std::endl;
+        }
+    } else {
+        std::cout << "测试完成，没有模块泄漏" << std::endl;
     }
 }
 
@@ -1845,13 +1921,13 @@ void PostPlot3D::release() {
 
 nlohmann::json PostPlot3D::GetParamSchema() {
     return {
-        {"cgns_type", {
+        {"plot3_type", {
             {"type", "string"},
             {"description", "Type of plot3 file"},
             {"enum", {"ASCII", "Binary"}},
             {"default", "ASCII"}
         }},
-        {"cgns_value", {
+        {"plot3_value", {
             {"type", "number"},
             {"description", "Number of plot3 value"},
             {"minimum", 1},
@@ -1965,8 +2041,6 @@ struct ModuleFactoryInit {
 static ModuleSystem::ModuleFactoryInit moduleFactoryInitInstance;
 
 // 初始化静态成员变量
-nlohmann::json ModuleSystem::ModuleFactoryCollection::staticFactoryPool_ = nlohmann::json::array();
-std::unordered_map<std::string, ModuleSystem::FactoryExecutionConfig> ModuleSystem::ModuleFactoryCollection::factoryExecutionConfigs_;
 nlohmann::json ModuleSystem::Nestedengine::staticEnginePool_ = nlohmann::json::array();
 
 // 初始化静态引擎池
