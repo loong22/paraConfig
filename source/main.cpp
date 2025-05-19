@@ -37,6 +37,7 @@ SOFTWARE.
 #endif
 
 int main(int argc, char* argv[]) {
+    
 #ifdef _WIN32
     // 设置控制台代码页为 UTF-8
     SetConsoleOutputCP(CP_UTF8);
@@ -48,37 +49,21 @@ int main(int argc, char* argv[]) {
 #endif
 
     std::string configFile = "./config.json";
-    bool generateConfig = false;
     
     if (argc > 1) {
         if (std::string(argv[1]) == "get") {
-            generateConfig = true;
             if (argc > 2) {
                 configFile = argv[2];
                 if (configFile.find('.') == std::string::npos) configFile += ".json";
             }
+            ModuleSystem::getConfig(configFile);
+            return 0;
         } else {
             configFile = argv[1];
             if (configFile.find('.') == std::string::npos) configFile += ".json";
         }
     }
     
-    if (generateConfig) {
-        auto registry = std::make_shared<ModuleSystem::AdvancedRegistry>();
-        auto engine = std::make_unique<ModuleSystem::Nestedengine>(*registry);
-        
-        // 注册模块
-        for (const auto& moduleType : ModuleSystem::ModuleTypeRegistry::instance().getModuleTypes()) {
-            if (!ModuleSystem::ModuleFactory::instance().registerModule(registry.get(), moduleType.name)) {
-                std::cerr << "警告: 无法通过工厂注册模块 '" << moduleType.name << "'" << std::endl;
-            }
-        }
-        
-        std::cout << "生成默认配置模板到 " << configFile << "..." << std::endl;
-        ModuleSystem::getConfigInfo(registry, engine, configFile);
-        return 0;
-    } 
-
     nlohmann::json config;
     std::cout << "正在加载配置文件: " << configFile << std::endl;
     
