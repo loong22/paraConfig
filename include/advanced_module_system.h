@@ -53,6 +53,18 @@ enum class LifecycleStage {
     RELEASED
 };
 
+// 用于记录所有引擎中启用的模块信息
+struct ModuleExecInfo {
+    std::string engineName;
+    std::string moduleName;
+    nlohmann::json moduleParams;
+};
+
+// 辅助函数：收集引擎中所有模块信息
+bool collectModulesFromConfig(const nlohmann::json& config, 
+    const std::string& engineName, 
+    std::unordered_set<std::string>& visitedEngines);
+
 // 模块特征模板增强
 template <typename T>
 struct ModuleTraits {
@@ -301,12 +313,8 @@ public:
     void executeModule(const std::string& name);
     void releaseModule(const std::string& name);
     
-    // 直接使用模块指针的生命周期方法
-    void initializeModule(void* modulePtr);
-    void executeModule(void* modulePtr);
-    void releaseModule(void* modulePtr);
-
     friend class Nestedengine;
+    friend class engineExecutionEngine;
 
 private:
     AdvancedRegistry& registry_;
@@ -413,9 +421,10 @@ void validateModuleParams(const nlohmann::json& moduleParams,
                           const std::string& moduleName, 
                           int rank = 0);
 
-class engineExecutionengine {
+class engineExecutionEngine {
 public:
-    engineExecutionengine(const nlohmann::json& engines, 
+    // engineExecutionEngine method definitions
+    engineExecutionEngine(const nlohmann::json& engines, 
                         ModuleSystem::engineContext& context);
     bool executeengine(const std::string& engineName);
 

@@ -42,6 +42,9 @@ enum class ModuleAction {
     UNKNOWN
 };
 
+// 存储验证阶段收集的模块执行顺序
+std::vector<ModuleExecInfo> collectedModules;
+
 // 将字符串转换为 ModuleAction 枚举
 ModuleAction stringToModuleAction(const std::string& actionStr) {
     static const std::unordered_map<std::string, ModuleAction> actionMap = {
@@ -267,44 +270,109 @@ nlohmann::json Nestedengine::getDefaultConfig() const {
     return defaultConfig;
 }
 
+bool engineExecutionEngine::executeengine(const std::string& engineName) {
+    // 如果收集的模块列表为空，则返回
+    if (collectedModules.empty()) {
+        std::cout << "没有启用的模块需要执行" << std::endl;
+        return true;
+    }
+    
+    try {
+        // 第一阶段：构造 - 创建所有模块
+        std::cout << "====== 构造阶段 ======" << std::endl;
+        for (const auto& moduleInfo : collectedModules) {
+            std::cout << "创建模块: " << moduleInfo.moduleName << " (引擎: " << moduleInfo.engineName << ")" << std::endl;
+            
+            // 确保模块名称在registry中存在
+            try {
+                // 使用公共接口创建模块，不再直接访问私有成员
+                context_.createModule(moduleInfo.moduleName, moduleInfo.moduleParams);
+            } catch (const std::exception& e) {
+                std::cerr << "错误: 创建模块 '" << moduleInfo.moduleName << "' 失败: " << e.what() << std::endl;
+                std::cerr << "确保模块已在正确的注册表中注册" << std::endl;
+                throw;
+            }
+        }
+        
+        // 第二阶段：初始化 - 初始化所有模块
+        std::cout << "====== 初始化阶段 ======" << std::endl;
+        for (const auto& moduleInfo : collectedModules) {
+            std::cout << "初始化模块: " << moduleInfo.moduleName << " (引擎: " << moduleInfo.engineName << ")" << std::endl;
+            context_.initializeModule(moduleInfo.moduleName);
+        }
+        
+        // 第三阶段：执行 - 执行所有模块
+        std::cout << "====== 执行阶段 ======" << std::endl;
+        for (const auto& moduleInfo : collectedModules) {
+            std::cout << "执行模块: " << moduleInfo.moduleName << " (引擎: " << moduleInfo.engineName << ")" << std::endl;
+            context_.executeModule(moduleInfo.moduleName);
+        }
+        
+        // 第四阶段：释放 - 按反序释放所有模块
+        std::cout << "====== 释放阶段 ======" << std::endl;
+        for (auto it = collectedModules.rbegin(); it != collectedModules.rend(); ++it) {
+            std::cout << "释放模块: " << it->moduleName << " (引擎: " << it->engineName << ")" << std::endl;
+            context_.releaseModule(it->moduleName);
+        }
+        
+    } catch (const std::exception& e) {
+        std::cerr << "错误: " << e.what() << std::endl;
+        
+        // 错误处理：尝试释放已创建但未释放的模块
+        std::cout << "尝试释放已创建的模块..." << std::endl;
+        for (auto it = collectedModules.rbegin(); it != collectedModules.rend(); ++it) {
+            try {
+                context_.releaseModule(it->moduleName);
+            } catch (const std::exception& e) {
+                // 忽略释放过程中的错误，以便尽可能多地释放资源
+                std::cerr << "释放模块 '" << it->moduleName << "' 时发生错误: " << e.what() << std::endl;
+            }
+        }
+        
+        return false;
+    }
+    
+    std::cout << "引擎执行完成" << std::endl;
+    return true;
+}
+
 void Nestedengine::executeengine(const std::string& name, std::shared_ptr<engineContext> parentContext) {
     auto it = enginePool_.find(name);
     if (it == enginePool_.end()) {
-        throw std::runtime_error("engine: " + name);
-    }
-
-    std::shared_ptr<engineContext> contextToExecuteWith;
-
-    if (parentContext) {
-        contextToExecuteWith = parentContext;
-    } else {
-        contextToExecuteWith = std::make_shared<engineContext>(registry_, this);
+        throw std::runtime_error("engine: " + name + " not found");
     }
     
-    // 设置引擎上下文的引擎名称
-    contextToExecuteWith->setEngineName(name);
+    // 创建上下文或使用父上下文
+    std::shared_ptr<engineContext> context = parentContext ? parentContext : 
+        std::make_shared<engineContext>(registry_, this);
     
-    // 获取引擎绑定的工厂名称
+    // 添加工厂访问权限控制
+    context->setEngineName(name);
+    
+    // 设置当前引擎可访问的模块列表，基于工厂绑定
     std::string factoryName = getEngineFactoryBinding(name);
-    
-    // 如果工厂名称不是默认工厂，则设置访问权限
     if (factoryName != "default") {
-        // 获取工厂中包含的所有模块
         auto factory = ModuleFactoryCollection::instance().getFactory(factoryName);
-        auto& allModuleCreators = factory->getAllModuleCreators();
+        std::unordered_set<std::string> allowedModules;
         
-        // 创建允许访问的模块集合
-        std::unordered_set<std::string> allowedModules; //在main.cpp中检测，把验证检测模块单独放出来。
-        for (const auto& [moduleName, _] : allModuleCreators) {
+        for (const auto& [moduleName, _] : factory->getAllModuleCreators()) {
             allowedModules.insert(moduleName);
         }
         
-        // 设置引擎上下文的允许模块列表
-        contextToExecuteWith->setAllowedModules(allowedModules);
+        context->setAllowedModules(allowedModules);
     }
     
-    contextToExecuteWith->engine_ = this; // Ensure the context knows about this engine
-    it->second(*contextToExecuteWith); // Execute the engine's lambda with the chosen/created context
+    // 在调用引擎函数前，创建工作流执行引擎
+    engineExecutionEngine executor(
+        ConfigurationStorage::instance().config["engine"], 
+        *context
+    );
+    
+    // 先调用引擎函数（可能包含自定义逻辑）
+    enginePool_[name](*context);
+    
+    // 执行此引擎定义的工作流
+    executor.executeengine(name);
 }
 
 // Nestedengine方法实现（添加到现有代码中）
@@ -689,93 +757,9 @@ void validateModuleParams(const nlohmann::json& moduleParams,
     }
 }
 
-// engineExecutionengine method definitions
-engineExecutionengine::engineExecutionengine(const nlohmann::json& engines, 
+engineExecutionEngine::engineExecutionEngine(const nlohmann::json& engines, 
                                              ModuleSystem::engineContext& context)
     : engines_(engines), context_(context) {}
-
-bool engineExecutionengine::executeengine(const std::string& engineName) {
-    if (visitedengines_.count(engineName)) {
-        std::cerr << "错误: 检测到工作流循环依赖: " << engineName << std::endl;
-        return false;
-    }
-    
-    // 查找引擎定义
-    auto it = std::find_if(engines_["enginePool"].begin(), engines_["enginePool"].end(), 
-        [engineName](const nlohmann::json& eng) { 
-            return eng["name"] == engineName && eng["enabled"].get<bool>(); 
-        });
-    
-    if (it == engines_["enginePool"].end()) {
-        std::cerr << "错误: 引擎 '" << engineName << "' 未找到或未启用" << std::endl;
-        return false;
-    }
-    
-    const nlohmann::json& engineDef = *it;
-    
-    visitedengines_.insert(engineName);
-    std::cout << "开始 " << engineName << std::endl;
-    
-    // 处理子引擎
-    if (engineDef.contains("subenginePool") && engineDef["subenginePool"].is_array()) {
-        for (const auto& subEngineName : engineDef["subenginePool"]) {
-            if (!executeengine(subEngineName.get<std::string>())) {
-                std::cout << "警告: 子引擎 '" << subEngineName.get<std::string>() << "' 执行失败" << std::endl;
-            }
-        }
-    }
-    
-     // 处理模块
-    if (engineDef.contains("modules") && engineDef["modules"].is_array()) {
-        for (const auto& moduleInfo : engineDef["modules"]) {
-            if (!moduleInfo.contains("name")) {
-                std::cerr << "错误: 模块定义缺少名称" << std::endl;
-                return false;
-            }
-            
-            const std::string& moduleName = moduleInfo["name"];
-            bool moduleEnabled = moduleInfo.value("enabled", true);
-            
-            // 如果模块被禁用，则跳过
-            if (!moduleEnabled) {
-                std::cout << "跳过已禁用模块 '" << moduleName << "'" << std::endl;
-                continue;
-            }
-            
-            try {
-                // 创建和执行模块
-                std::cout << "创建模块: " << moduleName << std::endl;
-                
-                // 获取模块参数 - 使用之前定义的工具函数获取有效参数
-                nlohmann::json moduleParams = getEffectiveModuleParams(
-                    context_.getParameter<nlohmann::json>("config"), 
-                    moduleName,
-                    moduleInfo.contains("params") ? moduleInfo["params"] : nlohmann::json(nullptr)
-                );
-                
-                void* moduleInstance = context_.createModule(moduleName, moduleParams);
-                
-                // 执行固定的四个动作：create, initialize, execute, release
-                // (create 已经在上面执行)
-                std::cout << "初始化模块: " << moduleName << std::endl;
-                context_.initializeModule(moduleName);
-                
-                std::cout << "执行模块: " << moduleName << std::endl;
-                context_.executeModule(moduleName);
-                
-                std::cout << "释放模块: " << moduleName << std::endl;
-                context_.releaseModule(moduleName);
-            } catch (const std::exception& e) {
-                std::cerr << "错误: " << e.what() << std::endl;
-                return false;
-            }
-        }
-    }
-    
-    std::cout << "完成 " << engineName << std::endl;
-    visitedengines_.erase(engineName);
-    return true;
-}
 
 nlohmann::json getEffectiveModuleParams(
     const nlohmann::json& moduleConfig, 
@@ -825,6 +809,74 @@ void ModuleFactoryCollection::initializeFactoriesFromConfig(const nlohmann::json
             }
         }
     }
+}
+
+// 辅助函数：收集引擎中所有模块信息
+bool collectModulesFromConfig(const nlohmann::json& config, 
+                            const std::string& engineName,
+                            std::unordered_set<std::string>& visitedEngines) {
+    // 检查循环依赖
+    if (visitedEngines.count(engineName)) {
+        std::cerr << "错误: 检测到工作流循环依赖: " << engineName << std::endl;
+        return false;
+    }
+    
+    // 查找引擎定义
+    auto it = std::find_if(config["enginePool"].begin(), config["enginePool"].end(), 
+        [engineName](const nlohmann::json& eng) { 
+            return eng["name"] == engineName && eng["enabled"].get<bool>(); 
+        });
+    
+    if (it == config["enginePool"].end()) {
+        std::cerr << "错误: 引擎 '" << engineName << "' 未找到或未启用" << std::endl;
+        return false;
+    }
+    
+    const nlohmann::json& engineDef = *it;
+    visitedEngines.insert(engineName);
+    
+    // 首先处理子引擎
+    if (engineDef.contains("subenginePool") && engineDef["subenginePool"].is_array()) {
+        for (const auto& subEngineName : engineDef["subenginePool"]) {
+            if (!collectModulesFromConfig(config, subEngineName.get<std::string>(), visitedEngines)) {
+                return false;
+            }
+        }
+    }
+    
+    // 处理当前引擎的模块
+    if (engineDef.contains("modules") && engineDef["modules"].is_array()) {
+        for (const auto& moduleInfo : engineDef["modules"]) {
+            if (!moduleInfo.contains("name")) {
+                std::cerr << "错误: 引擎 '" << engineName << "' 中的模块定义缺少名称" << std::endl;
+                return false;
+            }
+            
+            const std::string& moduleName = moduleInfo["name"];
+            bool moduleEnabled = moduleInfo.value("enabled", true);
+            
+            // 如果模块被禁用，则跳过
+            if (!moduleEnabled) {
+                continue;
+            }
+            
+            // 获取模块参数
+            nlohmann::json moduleParams = getEffectiveModuleParams(
+                ConfigurationStorage::instance().config["config"], 
+                moduleName,
+                moduleInfo.contains("params") ? moduleInfo["params"] : nlohmann::json(nullptr)
+            );
+            
+            // 存储模块信息
+            collectedModules.push_back({engineName, moduleName, moduleParams});
+            
+            // 调试输出
+            std::cout << "收集模块: " << moduleName << " 从引擎: " << engineName << std::endl;
+        }
+    }
+    
+    visitedEngines.erase(engineName);
+    return true;
 }
 
 bool paramValidation(const nlohmann::json& config) {
@@ -1484,13 +1536,12 @@ bool paramValidation(const nlohmann::json& config) {
             engine->defineengine(EngineName, 
                 [EngineDef, EngineName](ModuleSystem::engineContext& context) {
                     // 创建engineExecutionEngine实例来处理这个引擎中的所有模块的执行
-                    engineExecutionengine executor(
-                        ConfigurationStorage::instance().config["engine"], 
-                        context
-                    );
-                    
+                    // engineExecutionEngine executor(
+                    //     ConfigurationStorage::instance().config["engine"], 
+                    //     context
+                    // );
                     // 执行工作流
-                    executor.executeengine(EngineName);
+                    //executor.executeengine(EngineName);
                 });
         }
         storage.enginesAreDefined = true;
@@ -1512,10 +1563,66 @@ bool paramValidation(const nlohmann::json& config) {
             storage.mainContext->setParameter(moduleName, params);
         }
     }
+
+    // 清空之前收集的模块信息
+    collectedModules.clear();
+
+    // 验证配置结构
+    if (!config.contains("engine") || !config["engine"].contains("enginePool") || 
+        !config["engine"]["enginePool"].is_array()) {
+        std::cerr << "错误: 配置缺少有效的 engine.enginePool 数组" << std::endl;
+        return false;
+    }
+
+    if (!config.contains("moduleFactories") || !config["moduleFactories"].is_array()) {
+        std::cerr << "警告: 配置缺少 moduleFactories 数组，将使用默认工厂" << std::endl;
+    }
+
+    if (!config.contains("config")) {
+        std::cerr << "警告: 配置缺少 config 对象，可能缺少全局模块参数" << std::endl;
+    }
+
+    // 验证引擎定义
+    bool hasDefaultEngine = false;
+    for (const auto& engine : config["engine"]["enginePool"]) { // 修正路径
+        if (!engine.contains("name") || !engine["name"].is_string()) {
+            std::cerr << "错误: 引擎定义缺少有效的名称" << std::endl;
+            return false;
+        }
+        
+        if (engine["name"] == "mainProcess" && engine.value("enabled", true)) {
+            hasDefaultEngine = true;
+        }
+    }
+
+    // 收集模块执行顺序
+    std::unordered_set<std::string> visitedEngines;
+    if (!collectModulesFromConfig(config["engine"], "mainProcess", visitedEngines)) { // 修正传入参数
+        std::cerr << "错误: 收集模块执行顺序失败" << std::endl;
+        return false;
+    }
+
+    // 验证模块参数
+    for (const auto& moduleInfo : collectedModules) {
+        // 验证模块参数
+        try {
+            validateModuleParams(moduleInfo.moduleParams, moduleInfo.moduleName, 0);
+        } catch (const std::exception& e) {
+            std::cerr << "错误: 模块 '" << moduleInfo.moduleName << "' (引擎: " << moduleInfo.engineName 
+                    << ") 的参数验证失败: " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    // 如果没有收集到任何模块，发出警告
+    if (collectedModules.empty()) {
+        std::cerr << "警告: 没有找到任何启用的模块" << std::endl;
+    }
     
     std::cout << "配置验证通过，模块注册完成" << std::endl;
     return true;
 }
+
 
 void saveUsedConfig(const nlohmann::json& config, const std::string& outputFile) {
     // 解析配置，提取需要的部分
@@ -1546,32 +1653,37 @@ void saveUsedConfig(const nlohmann::json& config, const std::string& outputFile)
 }
 
 void run() {
+    // 获取已验证的配置和已创建的注册表
     auto& storage = ConfigurationStorage::instance();
+    const nlohmann::json& config = storage.config;
     
-    // 确保已完成参数验证和初始化
-    if (!storage.registry || !storage.engine || !storage.mainContext || !storage.enginesAreDefined) {
-        std::cerr << "错误: 请先运行 paramValidation 函数初始化环境" << std::endl;
-        return;
+    // 使用验证阶段创建的注册表和引擎，而不是创建新的
+    auto registry = storage.registry;
+    auto engine = std::move(storage.engine);
+    auto context = storage.mainContext;
+    
+    // 创建工作流引擎
+    engineExecutionEngine executionEngine(config["engine"], *context);
+    
+    // 执行主引擎
+    std::cout << "开始执行主引擎工作流..." << std::endl;
+    if (!executionEngine.executeengine("mainProcess")) {
+        std::cerr << "引擎执行失败" << std::endl;
+    } else {
+        std::cout << "引擎执行成功" << std::endl;
     }
     
-    // 直接执行主引擎，无需再做初始化工作
-    try {
-        storage.engine->executeengine("mainProcess", storage.mainContext);
-        
-        // 检查未释放的模块
-        auto leakedModules = storage.registry->checkLeakedModules();
-        if (!leakedModules.empty()) {
-            std::cerr << "错误: 发现未释放的模块:" << std::endl;
-            for (const auto& module : leakedModules) {
-                std::cerr << "  - " << module << std::endl;
-            }
-            std::cerr << "所有模块必须在程序结束前释放。请检查'release'工作流是否正确配置和执行。" << std::endl;
-        } else {
-            std::cout << "成功完成引擎执行" << std::endl;
+    // 检查是否有模块泄漏
+    auto leakedModules = registry->checkLeakedModules();
+    if (!leakedModules.empty()) {
+        std::cerr << "警告: 检测到未释放的模块:" << std::endl;
+        for (const auto& module : leakedModules) {
+            std::cerr << "  - " << module << std::endl;
         }
-    } catch (const std::exception& e) {
-        std::cerr << "执行中发生错误: " << e.what() << std::endl;
     }
+    
+    // 将engine所有权归还给storage，以便后续使用
+    storage.engine = std::move(engine);
 }
 
 void test() {
