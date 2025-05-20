@@ -54,6 +54,7 @@ class AdvancedRegistry;
 class engineContext;
 class Nestedengine;
 
+
 /**
  * @brief 模块参数特性模板（前向声明）
  * @tparam T 模块类型
@@ -288,12 +289,6 @@ public:
     }
     
     /**
-     * @brief 根据配置文件初始化工厂
-     * @param config 配置文件JSON对象
-     */
-    void initializeFactoriesFromConfig(const nlohmann::json& config);
-    
-    /**
      * @brief 获取所有工厂名称
      * @return 工厂名称列表
      */
@@ -398,6 +393,141 @@ struct ModuleMeta {
 };
 
 /**
+ * @brief 模块引擎映射类
+ */
+class EngineModuleMapping {
+public:
+    /**
+     * @brief 获取单例实例
+     * @return 引用到单例实例
+     */
+    static EngineModuleMapping& instance() {
+        static EngineModuleMapping instance;
+        return instance;
+    }
+    
+    /**
+     * @brief 将模块关联到引擎
+     * @param moduleName 模块名称
+     * @param engineName 引擎名称
+     */
+    void assignModuleToEngine(const std::string& moduleName, const std::string& engineName) {
+        moduleToEngine_[moduleName] = engineName;
+    }
+    
+    /**
+     * @brief 获取模块所属的引擎
+     * @param moduleName 模块名称
+     * @return 引擎名称，如果模块未绑定则返回空字符串
+     */
+    std::string getModuleEngine(const std::string& moduleName) const {
+        auto it = moduleToEngine_.find(moduleName);
+        return (it != moduleToEngine_.end()) ? it->second : "";
+    }
+    
+    /**
+     * @brief 获取引擎关联的所有模块
+     * @param engineName 引擎名称
+     * @return 该引擎关联的模块名称集合
+     */
+    std::vector<std::string> getEngineModules(const std::string& engineName) const {
+        std::vector<std::string> modules;
+        for (const auto& [modName, engName] : moduleToEngine_) {
+            if (engName == engineName) {
+                modules.push_back(modName);
+            }
+        }
+        return modules;
+    }
+    
+    /**
+     * @brief 检查模块是否绑定到任何引擎
+     * @param moduleName 模块名称
+     * @return 如果模块已绑定到任何引擎则返回true，否则返回false
+     */
+    bool isModuleBoundToEngine(const std::string& moduleName) const {
+        return moduleToEngine_.find(moduleName) != moduleToEngine_.end();
+    }
+    
+private:
+    std::unordered_map<std::string, std::string> moduleToEngine_;
+};
+
+/**
+ * @brief 辅助函数：将模块关联到引擎
+ * @param moduleName 模块名称
+ * @param engineName 引擎名称
+ */
+inline void assignModuleToEngine(const std::string& moduleName, const std::string& engineName) {
+    EngineModuleMapping::instance().assignModuleToEngine(moduleName, engineName);
+}
+
+/**
+ * @brief 模块接口检查器
+ */
+template <typename T>
+class ModuleInterfaceChecker {
+private:
+    // 用SFINAE技术检查类是否有特定方法
+    
+    // 检查构造函数是否接受json参数
+    template <typename C>
+    static auto hasJsonConstructor(int) 
+        -> decltype(C(std::declval<const nlohmann::json&>()), std::true_type());
+    
+    template <typename C>
+    static std::false_type hasJsonConstructor(...);
+    
+    // 检查initialize方法
+    template <typename C>
+    static auto hasInitialize(int) 
+        -> decltype(std::declval<C>().initialize(), std::true_type());
+    
+    template <typename C>
+    static std::false_type hasInitialize(...);
+    
+    // 检查execute方法
+    template <typename C>
+    static auto hasExecute(int) 
+        -> decltype(std::declval<C>().execute(), std::true_type());
+    
+    template <typename C>
+    static std::false_type hasExecute(...);
+    
+    // 检查release方法
+    template <typename C>
+    static auto hasRelease(int) 
+        -> decltype(std::declval<C>().release(), std::true_type());
+    
+    template <typename C>
+    static std::false_type hasRelease(...);
+    
+    // 检查静态GetParamSchema方法
+    template <typename C>
+    static auto hasGetParamSchema(int) 
+        -> decltype(C::GetParamSchema(), std::true_type());
+    
+    template <typename C>
+    static std::false_type hasGetParamSchema(...);
+
+public:
+    // 编译时检查接口
+    static constexpr bool validateInterface() {
+        static_assert(decltype(hasJsonConstructor<T>(0))::value, 
+                      "Module must implement constructor accepting nlohmann::json parameter");
+        static_assert(decltype(hasInitialize<T>(0))::value, 
+                      "Module must implement initialize() method");
+        static_assert(decltype(hasExecute<T>(0))::value, 
+                      "Module must implement execute() method");
+        static_assert(decltype(hasRelease<T>(0))::value, 
+                      "Module must implement release() method");
+        static_assert(decltype(hasGetParamSchema<T>(0))::value,
+                      "Module must implement static GetParamSchema() method");
+        return true;
+    }
+};
+
+/**
  * @brief 高级注册表类
  */
 class AdvancedRegistry {
@@ -409,6 +539,10 @@ public:
      */
     template <typename T>
     void Register(const std::string& name) {
+        // 编译时检查模块接口
+        constexpr bool valid = ModuleInterfaceChecker<T>::validateInterface();
+        static_assert(valid, "Module interface validation failed");
+    
         modules_[name] = ModuleMeta::Create<T>();
     }
 
@@ -468,6 +602,14 @@ public:
     engineContext(AdvancedRegistry& reg, Nestedengine* engine = nullptr);
     
     /**
+     * @brief Gets the parameters stored in the context.
+     * @return A const reference to the parameters JSON object.
+     */
+    const nlohmann::json& getParameters() const {
+        return parameters_;
+    }
+
+    /**
      * @brief 设置引擎名称
      * @param name 引擎名称
      */
@@ -496,9 +638,7 @@ public:
      * @param moduleName 模块名称
      * @return 是否可以访问该模块
      */
-    bool canAccessModule(const std::string& moduleName) const {
-        return allowedModules_.empty() || allowedModules_.count(moduleName) > 0;
-    }
+    bool canAccessModule(const std::string& moduleName) const;
     
     /**
      * @brief 获取参数
@@ -522,12 +662,6 @@ public:
      * @param value 参数值
      */
     void setParameter(const std::string& name, const nlohmann::json& value);
-    
-    /**
-     * @brief 执行子进程
-     * @param name 子进程名称
-     */
-    void executeSubProcess(const std::string& name);
 
     /**
      * @brief 创建模块实例
@@ -607,36 +741,6 @@ public:
     nlohmann::json getDefaultConfig() const;
     
     /**
-     * @brief 执行引擎
-     * @param name 引擎名称
-     * @param parentContext 父上下文，默认为nullptr
-     */
-    void executeengine(
-        const std::string& name, 
-        std::shared_ptr<engineContext> parentContext = nullptr
-    );
-    
-    /**
-     * @brief 绑定引擎到指定的模块工厂
-     * @param engineName 引擎名称
-     * @param factoryName 工厂名称
-     */
-    void bindEngineToFactory(const std::string& engineName, const std::string& factoryName);
-    
-    /**
-     * @brief 获取引擎绑定的工厂名称，若未绑定则返回默认工厂
-     * @param engineName 引擎名称
-     * @return 工厂名称
-     */
-    std::string getEngineFactoryBinding(const std::string& engineName) const;
-    
-    /**
-     * @brief 从配置初始化引擎和工厂的绑定
-     * @param config 配置JSON对象
-     */
-    void initializeEngineFactoryBindings(const nlohmann::json& config);
-    
-    /**
      * @brief 获取静态引擎池
      * @return 静态引擎池的JSON对象引用
      */
@@ -648,7 +752,6 @@ private:
     AdvancedRegistry& registry_; /**< 高级注册表引用 */
     std::unordered_map<std::string, std::function<void(engineContext&)>> enginePool_; /**< 引擎池 */
     nlohmann::json parameters_; /**< 参数 */
-    std::unordered_map<std::string, std::string> engineFactoryBindings_; /**< 存储引擎和工厂的绑定关系 */
     
     /// 静态成员变量 - 存储引擎池
     static nlohmann::json staticEnginePool_;
@@ -724,22 +827,17 @@ struct ModuleParamTraits {
  */
 class ModuleRegistryInitializer {
 public:
-    /**
-     * @brief 构造函数
-     */
     ModuleRegistryInitializer();
     
-    /**
-     * @brief 获取单例实例
-     * @return 模块注册初始化器实例的引用
-     */
     static ModuleRegistryInitializer& init();
     
-private:
-    /// 删除拷贝构造函数
-    ModuleRegistryInitializer(const ModuleRegistryInitializer&) = delete;
+    // 添加新方法来指定模块所属的引擎
+    void assignModuleToEngine(const std::string& moduleName, const std::string& engineName) {
+        EngineModuleMapping::instance().assignModuleToEngine(moduleName, engineName);
+    }
     
-    /// 删除赋值运算符
+private:
+    ModuleRegistryInitializer(const ModuleRegistryInitializer&) = delete;
     ModuleRegistryInitializer& operator=(const ModuleRegistryInitializer&) = delete;
 };
 
@@ -763,7 +861,7 @@ public:
      * @param engineName 引擎名称
      * @return 执行是否成功
      */
-    bool executeengine(const std::string& engineName);
+    bool executeengine(const std::string& engineName,  engineContext& parentContext);
 
 private:
     const nlohmann::json& engines_; /**< 引擎配置JSON对象 */
@@ -785,6 +883,8 @@ public:
         return instance;
     }
     
+    void initializeEngineContexts();
+
     nlohmann::json config; /**< 验证过的配置 */
     
     // 预处理的关键数据
@@ -799,8 +899,14 @@ public:
     std::unique_ptr<Nestedengine> engine; /**< 嵌套引擎 */
     std::shared_ptr<engineContext> mainContext; /**< 主上下文 */
     
-    // 工厂相关信息
-    std::unordered_set<std::string> requiredFactories; /**< 需要的工厂集合 */
+    // 引擎上下文集合
+    std::unordered_map<std::string, std::shared_ptr<engineContext>> engineContexts;
+
+    // 存储已收集的所有模块信息，按引擎组织
+    std::unordered_map<std::string, std::vector<ModuleExecInfo>> engineModules;
+    
+    // 存储引擎执行顺序
+    std::vector<std::string> engineExecutionOrder;
     
     bool enginesAreDefined = false; /**< 引擎定义状态 */
     
@@ -814,7 +920,9 @@ public:
         knownModules.clear();
         enabledModules.clear();
         usedEngineNames.clear();
-        requiredFactories.clear();
+        engineContexts.clear();
+        engineModules.clear();
+        engineExecutionOrder.clear();
         enginesAreDefined = false;
         // 保留 registry、engine 和 mainContext 不清除实例，只重置状态
     }
@@ -952,12 +1060,6 @@ void saveUsedConfig(const nlohmann::json& config, const std::string& outputFile)
  * @brief 测试模块系统
  */
 void test();
-
-/**
- * @defgroup Modules 模块类
- * @brief 系统中的所有模块类
- * @{
- */
 
 /**
  * @brief 预处理CGNS模块
