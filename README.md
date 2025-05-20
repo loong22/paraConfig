@@ -13,6 +13,8 @@ paraConfig是一个基于C++的高级模块化参数管理系统，通过JSON配
 - **自动配置生成**：根据注册模块自动生成默认配置模板
 - **完整UTF-8支持**：确保中文和其他Unicode字符正常显示
 - **资源泄漏检测**：自动检测未释放的模块资源
+- **循环依赖检测**：防止引擎之间的循环引用导致死循环
+- **详细的错误报告**：提供准确的配置验证错误信息，帮助快速排查问题
 
 ## 如何使用
 
@@ -43,10 +45,10 @@ paraConfig是一个基于C++的高级模块化参数管理系统，通过JSON配
 ### 1. config - 全局参数和模块参数配置
 
 全局参数包括：
-- `solver`: 求解器类型 (如"SIMPLE", "PISO")
-- `maxIterations`: 最大迭代次数
-- `convergenceCriteria`: 收敛判断标准
-- `time_step`: 时间步长
+- `solver`: 求解器类型 (如"SIMPLE", "PISO", "PIMPLE", "Coupled")
+- `maxIterations`: 最大迭代次数 (1-1000000)
+- `convergenceCriteria`: 收敛判断标准 (0-1之间)
+- `time_step`: 时间步长 (必须大于0)
 
 模块特定参数采用嵌套对象格式：
 ```json
@@ -70,8 +72,8 @@ paraConfig是一个基于C++的高级模块化参数管理系统，通过JSON配
 ### 2. moduleFactories - 模块工厂定义
 
 定义模块工厂及其执行策略：
-- `CHOOSE_ONE`：用户在运行时从工厂中选择一个模块执行
-- `SEQUENTIAL_EXECUTION`：按指定顺序依次执行工厂中的所有启用模块
+- `CHOOSE_ONE`：引擎在执行时，只能选择该工厂中的一个模块
+- `SEQUENTIAL_EXECUTION`：按定义顺序依次执行工厂中的所有启用模块
 
 ```json
 "moduleFactories": [
@@ -97,7 +99,7 @@ paraConfig是一个基于C++的高级模块化参数管理系统，通过JSON配
 
 ### 3. engineFactoryBindings - 引擎与工厂绑定关系
 
-定义每个引擎可访问的模块工厂：
+定义每个引擎可访问的模块工厂，实现访问控制：
 
 ```json
 "engineFactoryBindings": [
@@ -110,7 +112,7 @@ paraConfig是一个基于C++的高级模块化参数管理系统，通过JSON配
 
 ### 4. engine - 引擎定义和执行流程
 
-定义引擎池及各引擎中启用的模块：
+定义引擎池及各引擎中启用的模块或子引擎：
 
 ```json
 "engine": {
@@ -125,16 +127,6 @@ paraConfig是一个基于C++的高级模块化参数管理系统，通过JSON配
             ]
         },
         {
-            "name": "Solve",
-            "description": "求解引擎",
-            "enabled": true,
-            "modules": [
-                {"name": "EulerSolver", "enabled": true},
-                {"name": "SASolver", "enabled": true},
-                {"name": "SSTSolver", "enabled": false}
-            ]
-        },
-        {
             "name": "mainProcess",
             "description": "总控制引擎",
             "enabled": true,
@@ -144,32 +136,25 @@ paraConfig是一个基于C++的高级模块化参数管理系统，通过JSON配
 }
 ```
 
+引擎定义可以包含：
+- `modules`：直接使用的模块列表
+- `subenginePool`：子引擎列表，用于构建复杂工作流
+- `enabled`：每个引擎和模块都可以单独控制是否启用
+
 ### 5. registry - 模块注册信息
 
-定义所有可用模块及其参数架构：
+定义系统中所有可用模块及其启用状态：
 
 ```json
 "registry": {
     "modules": [
-        {
-            "name": "PreCGNS",
-            "enabled": true,
-            "parameters": {
-                "cgns_type": {
-                    "type": "string",
-                    "description": "Type of cgns file",
-                    "enum": ["HDF5", "ADF"],
-                    "default": "HDF5"
-                },
-                "cgns_value": {
-                    "type": "number",
-                    "description": "Number of cgns value",
-                    "minimum": 1,
-                    "maximum": 100,
-                    "default": 10
-                }
-            }
-        }
+        {"name": "PreCGNS", "enabled": true},
+        {"name": "PrePlot3D", "enabled": true},
+        {"name": "EulerSolver", "enabled": true},
+        {"name": "SASolver", "enabled": true},
+        {"name": "SSTSolver", "enabled": true},
+        {"name": "PostCGNS", "enabled": true},
+        {"name": "PostPlot3D", "enabled": true}
     ]
 }
 ```
@@ -183,7 +168,12 @@ paraConfig是一个基于C++的高级模块化参数管理系统，通过JSON配
 3. **执行阶段**：依次执行所有初始化完成的模块
 4. **释放阶段**：按照逆序释放所有模块资源
 
-模块执行过程中发生错误时，系统会尝试按逆序释放已创建的模块资源，确保系统不会发生资源泄漏。
+生命周期状态转换：
+```
+CONSTRUCTED -> INITIALIZED -> EXECUTED -> RELEASED
+```
+
+模块执行过程中发生错误时，系统会尝试按逆序释放已创建的模块资源，确保系统不会发生资源泄漏。系统会自动跟踪每个模块的生命周期状态，并在发生状态转换错误时提供详细的错误信息。
 
 ## 工厂执行策略
 
@@ -193,21 +183,25 @@ paraConfig是一个基于C++的高级模块化参数管理系统，通过JSON配
 
 - 用于从多个选项中选择一个模块执行
 - 每个引擎中只能启用该工厂的一个模块
+- 如果同一引擎中启用了多个模块，系统会在验证阶段报错
 - 典型应用：多种网格输入格式中选择一种
 
 ### SEQUENTIAL_EXECUTION 策略
 
 - 按顺序执行工厂中所有启用的模块
-- 支持自定义执行顺序
+- 可以灵活地启用或禁用某些模块
 - 典型应用：求解器多个阶段的连续执行
 
-## 权限控制机制
+## 访问控制机制
 
 系统通过引擎与工厂的绑定关系实现模块访问控制：
 
 - 每个引擎只能访问其绑定工厂中的模块
 - 未明确绑定的引擎默认使用"default"工厂
-- 引擎尝试访问非绑定工厂的模块时会产生错误
+- 引擎尝试访问非绑定工厂的模块时会立即终止程序并提供明确的错误信息：
+  ```
+  访问控制错误: 引擎 'EngineName' 尝试创建不属于其绑定工厂的模块 'ModuleName'
+  ```
 - "CHOOSE_ONE"类型的工厂在同一引擎中只能启用一个模块
 
 ## 支持的模块
@@ -242,27 +236,65 @@ paraConfig是一个基于C++的高级模块化参数管理系统，通过JSON配
 2. **引擎定义验证**：检查引擎名称唯一性和子引擎存在性
 3. **参数类型验证**：根据参数架构验证每个模块参数的类型和值范围
 4. **模块依赖验证**：检查模块间依赖关系和引擎绑定的有效性
-5. **循环依赖检测**：防止引擎之间的循环引用
-6. **权限控制验证**：确保引擎只访问其绑定工厂中的模块
+5. **循环依赖检测**：防止引擎之间的循环引用，确保执行路径是有向无环图
+6. **访问控制验证**：确保引擎只访问其绑定工厂中的模块
 7. **CHOOSE_ONE策略验证**：确保同一引擎中CHOOSE_ONE工厂只启用一个模块
+8. **必需参数验证**：确保所有标记为required的参数都已提供
 
-验证失败会提供详细的错误信息，帮助用户快速定位配置问题。
+验证失败会提供详细的错误信息，帮助用户快速定位配置问题，例如：
+```
+错误: 引擎 'EngineName' 中模块 'ModuleName' 的参数 'paramName' 验证失败: 值必须大于等于10，但获取到5
+```
 
 ## 配置文件保存
 
-系统会将实际执行时使用的配置保存为`[原始配置文件名]_used.json`，便于调试和追踪。
+系统会将实际执行时使用的配置保存为`[原始配置文件名]_used.json`，方便问题追踪和执行记录。
 
 ## 资源泄漏检测
 
 系统会在执行结束后检查是否有模块未被正确释放，防止资源泄漏：
 
+```
+警告: 检测到未释放的模块:
+  - ModuleName (状态: EXECUTED)
+```
+
 - 自动追踪每个模块的生命周期状态
 - 检测未释放的模块并提供详细报告
 - 在执行流程中断时尝试释放已创建的模块资源
 
+## 模块参数架构
+
+模块参数使用JSON Schema风格定义，支持以下验证规则：
+
+- **类型验证**：string, number, boolean, array, object
+- **范围验证**：minimum, maximum (数值类型)
+- **枚举验证**：enum (字符串类型)
+- **必需性验证**：required
+- **默认值**：default
+
+例如，CGNS模块的参数架构：
+```cpp
+{
+    "cgns_type": {
+        "type": "string",
+        "description": "Type of cgns file",
+        "enum": ["HDF5", "ADF"],
+        "default": "HDF5"
+    },
+    "cgns_value": {
+        "type": "number",
+        "description": "Number of cgns value",
+        "minimum": 1,
+        "maximum": 100,
+        "default": 10
+    }
+}
+```
+
 ## 编译与依赖
 
-在Windows环境下，可以使用CMake构建项目：
+使用CMake构建项目：
 
 ```bash
 mkdir build
@@ -273,32 +305,33 @@ cmake --build . --config Release
 
 主要依赖：
 - **nlohmann/json**：用于JSON处理
-- **C++17标准库**：使用了std::filesystem和其他C++17特性
+- **C++20或更高标准库**：使用了std::filesystem和其他现代C++特性
 
-## 示例工作流程
+## 典型应用场景
 
-1. PreGrid引擎（网格预处理）
-   - 从PreCGNS或PrePlot3D中选择一个模块执行（CHOOSE_ONE策略）
-   - 处理输入网格文件
-   
-2. Solve引擎（求解过程）
-   - 按顺序执行EulerSolver、SASolver（SEQUENTIAL_EXECUTION策略）
-   - 计算空气动力学解决方案
-   
-3. Post引擎（结果后处理）
-   - 按顺序执行PostCGNS和PostPlot3D（SEQUENTIAL_EXECUTION策略）
-   - 输出计算结果
+### 1. CFD工作流管理
+- 网格处理 → 流场求解 → 结果后处理的标准CFD工作流
+- 不同阶段可以选择不同的模块实现
 
-4. mainProcess引擎（主控制流程）
-   - 协调调用上述三个子引擎
-   - 管理整体执行流程
+### 2. 参数扫描与优化
+- 通过脚本生成多组配置文件
+- 使用不同参数设置并行或串行执行多个任务
+
+### 3. 多物理场耦合计算
+- 使用多个求解器模块依次执行
+- 在模块间传递中间结果
+
+### 4. 定制工作流程
+- 使用嵌套引擎设计复杂的计算流程
+- 根据需要启用或禁用特定模块
 
 ## 注意事项
 
 - 确保使用UTF-8编码保存配置文件，特别是包含中文字符时
-- 在Windows环境下，程序会自动设置控制台代码页为65001(UTF-8)
+- 在Windows环境下，程序会自动设置控制台代码页为UTF-8
 - 所有模块参数都会进行类型和范围验证，请确保参数值在有效范围内
 - CHOOSE_ONE类型的工厂中，同一引擎只能启用一个模块
 - 引擎只能访问其绑定工厂中的模块，确保正确设置engineFactoryBindings
 - 系统会检查未释放的模块资源，确保不发生资源泄漏
 - 主进程引擎(mainProcess)必须存在且启用，作为程序的入口点
+- 避免在引擎定义中创建循环依赖，这会导致验证失败
