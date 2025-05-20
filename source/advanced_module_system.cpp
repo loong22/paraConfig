@@ -1119,50 +1119,6 @@ bool paramValidation(const nlohmann::json& config) {
                 return false;
             }
 
-            if (executionType == "SEQUENTIAL_EXECUTION") {
-                if (factory.contains("firstModule")) {
-                    if (!factory["firstModule"].is_string()) {
-                        std::cerr << "工厂定义错误: 工厂 '" << factoryName << "' 的firstModule必须是字符串" << std::endl;
-                        return false;
-                    }
-                    
-                    std::string firstModule = factory["firstModule"];
-                    bool moduleExists = false;
-                    for (const auto& module : factory["modules"]) {
-                        if (module.contains("name") && module["name"] == firstModule) {
-                            moduleExists = true;
-                            break;
-                        }
-                    }
-                    
-                    if (!moduleExists) {
-                        std::cerr << "工厂定义错误: 工厂 '" << factoryName << "' 的firstModule '" << firstModule << "' 不在工厂模块列表中" << std::endl;
-                        return false;
-                    }
-                }
-                
-                if (factory.contains("executionOrder") && factory["executionOrder"].is_array()) {
-                    std::unordered_set<std::string> moduleNames;
-                    for (const auto& module : factory["modules"]) {
-                        if (module.contains("name")) {
-                            moduleNames.insert(module["name"]);
-                        }
-                    }
-                    
-                    for (const auto& moduleName : factory["executionOrder"]) {
-                        if (!moduleName.is_string()) {
-                            std::cerr << "工厂定义错误: 工厂 '" << factoryName << "' 的executionOrder中必须都是字符串" << std::endl;
-                            return false;
-                        }
-                        
-                        if (moduleNames.find(moduleName) == moduleNames.end()) {
-                            std::cerr << "工厂定义错误: 工厂 '" << factoryName << "' 的executionOrder中的模块 '" 
-                                << moduleName.get<std::string>() << "' 不在工厂模块列表中" << std::endl;
-                        }
-                    }
-                }
-            }
-            
             if (factory.contains("modules")) {
                 for (const auto& module : factory["modules"]) {
                     if (!module.contains("name")) {
@@ -1778,7 +1734,7 @@ void run() {
     const nlohmann::json& config = storage.config;
     
     auto registry = storage.registry;
-    auto engine = std::move(storage.engine);
+    //auto engine = std::move(storage.engine);
     auto context = storage.mainContext;
     
     engineExecutionEngine executionEngine(config["engine"], *context);
@@ -1798,7 +1754,7 @@ void run() {
         }
     }
     
-    storage.engine = std::move(engine);
+    //storage.engine = std::move(engine);
 }
 
 /**

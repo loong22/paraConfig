@@ -856,12 +856,6 @@ nlohmann::json createRegistryInfo();
 nlohmann::json createengineInfo();
 
 /**
- * @brief 创建默认配置
- * @return 默认配置JSON对象
- */
-nlohmann::json createDefaultConfig();
-
-/**
  * @brief 获取配置
  * @param configFile 配置文件路径
  */
