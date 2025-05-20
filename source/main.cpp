@@ -23,6 +23,9 @@ SOFTWARE.
 *********************************************************************/
 
 #include "advanced_module_system.h"
+#include "preGrid.h"
+#include "solve.h"
+#include "post.h"
 #include <iostream>
 #include <memory>
 #include <fstream>
@@ -47,6 +50,13 @@ int main(int argc, char* argv[]) {
     setvbuf(stdout, nullptr, _IONBF, 0);
     setvbuf(stderr, nullptr, _IONBF, 0);
 #endif
+
+    // 初始化模块系统
+    PREGRID::exportToGlobalRegistry();
+
+    SOLVE::exportToGlobalRegistry();
+
+    POST::exportToGlobalRegistry();
 
     // 获取配置
     ModuleSystem::getConfig(argc, argv);

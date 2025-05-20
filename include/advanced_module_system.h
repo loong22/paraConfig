@@ -1061,344 +1061,443 @@ void saveUsedConfig(const nlohmann::json& config, const std::string& outputFile)
  */
 void test();
 
+// /**
+//  * @brief 预处理CGNS模块
+//  */
+// class PreCGNS {
+// public:
+//     /**
+//      * @brief 构造函数
+//      * @param params 模块参数
+//      */
+//     explicit PreCGNS(const nlohmann::json& params);
+    
+//     /**
+//      * @brief 初始化模块
+//      */
+//     void initialize();
+    
+//     /**
+//      * @brief 执行模块
+//      */
+//     void execute();
+    
+//     /**
+//      * @brief 释放模块
+//      */
+//     void release();
+    
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+    
+// private:
+//     std::string cgns_type_; /**< CGNS类型 */
+//     double cgns_value_;     /**< CGNS值 */
+// };
+
+// /**
+//  * @brief PreCGNS模块的参数特性特化
+//  */
+// template <> struct ModuleParamTraits<PreCGNS> {
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+// };
+
+// /**
+//  * @brief 预处理Plot3D模块
+//  */
+// class PrePlot3D {
+// public:
+//     /**
+//      * @brief 构造函数
+//      * @param params 模块参数
+//      */
+//     explicit PrePlot3D(const nlohmann::json& params);
+    
+//     /**
+//      * @brief 初始化模块
+//      */
+//     void initialize();
+    
+//     /**
+//      * @brief 执行模块
+//      */
+//     void execute();
+    
+//     /**
+//      * @brief 释放模块
+//      */
+//     void release();
+    
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+    
+// private:
+//     std::string plot3_type_; /**< Plot3D类型 */
+//     double plot3d_value_;    /**< Plot3D值 */
+// };
+
+// /**
+//  * @brief PrePlot3D模块的参数特性特化
+//  */
+// template <> struct ModuleParamTraits<PrePlot3D> {
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+// };
+
+// /**
+//  * @brief 欧拉求解器模块
+//  */
+// class EulerSolver {
+// public:
+//     /**
+//      * @brief 构造函数
+//      * @param params 模块参数
+//      */
+//     explicit EulerSolver(const nlohmann::json& params);
+    
+//     /**
+//      * @brief 初始化模块
+//      */
+//     void initialize();
+    
+//     /**
+//      * @brief 执行模块
+//      */
+//     void execute();
+    
+//     /**
+//      * @brief 释放模块
+//      */
+//     void release();
+    
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+    
+// private:
+//     std::string euler_type_; /**< 欧拉类型 */
+//     double euler_value__;    /**< 欧拉值 */
+// };
+
+// /**
+//  * @brief EulerSolver模块的参数特性特化
+//  */
+// template <> struct ModuleParamTraits<EulerSolver> {
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+// };
+
+// /**
+//  * @brief SA求解器模块
+//  */
+// class SASolver {
+// public:
+//     /**
+//      * @brief 构造函数
+//      * @param params 模块参数
+//      */
+//     explicit SASolver(const nlohmann::json& params);
+    
+//     /**
+//      * @brief 初始化模块
+//      */
+//     void initialize();
+    
+//     /**
+//      * @brief 执行模块
+//      */
+//     void execute();
+    
+//     /**
+//      * @brief 释放模块
+//      */
+//     void release();
+    
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+    
+// private:
+//     std::string sa_type_;          /**< SA类型 */
+//     double convergence_criteria_;  /**< 收敛标准 */
+//     int max_iterations_;           /**< 最大迭代次数 */
+// };
+
+// /**
+//  * @brief SASolver模块的参数特性特化
+//  */
+// template <> struct ModuleParamTraits<SASolver> {
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+// };
+
+// /**
+//  * @brief SST求解器模块
+//  */
+// class SSTSolver {
+// public:
+//     /**
+//      * @brief 构造函数
+//      * @param params 模块参数
+//      */
+//     explicit SSTSolver(const nlohmann::json& params);
+    
+//     /**
+//      * @brief 初始化模块
+//      */
+//     void initialize();
+    
+//     /**
+//      * @brief 执行模块
+//      */
+//     void execute();
+    
+//     /**
+//      * @brief 释放模块
+//      */
+//     void release();
+    
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+    
+// private:
+//     std::string sst_type_;         /**< SST类型 */
+//     double convergence_criteria_;  /**< 收敛标准 */
+//     int max_iterations_;           /**< 最大迭代次数 */
+// };
+
+// /**
+//  * @brief SSTSolver模块的参数特性特化
+//  */
+// template <> struct ModuleParamTraits<SSTSolver> {
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+// };
+
+// /**
+//  * @brief 后处理CGNS模块
+//  */
+// class PostCGNS {
+// public:
+//     /**
+//      * @brief 构造函数
+//      * @param params 模块参数
+//      */
+//     explicit PostCGNS(const nlohmann::json& params);
+    
+//     /**
+//      * @brief 初始化模块
+//      */
+//     void initialize();
+    
+//     /**
+//      * @brief 执行模块
+//      */
+//     void execute();
+    
+//     /**
+//      * @brief 释放模块
+//      */
+//     void release();
+    
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+    
+// private:
+//     std::string cgns_type_; /**< CGNS类型 */
+//     double cgns_value_;     /**< CGNS值 */
+// };
+
+// /**
+//  * @brief PostCGNS模块的参数特性特化
+//  */
+// template <> struct ModuleParamTraits<PostCGNS> {
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+// };
+
+// /**
+//  * @brief 后处理Plot3D模块
+//  */
+// class PostPlot3D {
+// public:
+//     /**
+//      * @brief 构造函数
+//      * @param params 模块参数
+//      */
+//     explicit PostPlot3D(const nlohmann::json& params);
+    
+//     /**
+//      * @brief 初始化模块
+//      */
+//     void initialize();
+    
+//     /**
+//      * @brief 执行模块
+//      */
+//     void execute();
+    
+//     /**
+//      * @brief 释放模块
+//      */
+//     void release();
+    
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+    
+// private:
+//     std::string plot3d_type_; /**< Plot3D类型 */
+//     double plot3d_value_;     /**< Plot3D值 */
+// };
+
+// /**
+//  * @brief PostPlot3D模块的参数特性特化
+//  */
+// template <> struct ModuleParamTraits<PostPlot3D> {
+//     /**
+//      * @brief 获取参数架构
+//      * @return 参数架构JSON对象
+//      */
+//     static nlohmann::json GetParamSchema();
+// };
+
 /**
- * @brief 预处理CGNS模块
+ * @brief 本地类型注册表类
+ * 不直接继承ModuleTypeRegistry，而是包含它的实例
  */
-class PreCGNS {
+class LocalTypeRegistry {
 public:
     /**
      * @brief 构造函数
-     * @param params 模块参数
      */
-    explicit PreCGNS(const nlohmann::json& params);
+    LocalTypeRegistry() {}
     
     /**
-     * @brief 初始化模块
+     * @brief 注册模块类型
+     * @param moduleName 模块名称
+     * @param schemaFunc 获取参数架构的函数
      */
-    void initialize();
+    void registerType(const std::string& moduleName, 
+                    std::function<nlohmann::json()> schemaFunc) {
+        types_[moduleName] = schemaFunc;
+    }
     
     /**
-     * @brief 执行模块
+     * @brief 获取所有注册的模块类型和参数架构函数
+     * @return 模块类型信息列表
      */
-    void execute();
+    const auto& getModuleTypes() const {
+        return types_;
+    }
     
     /**
-     * @brief 释放模块
+     * @brief 将本地注册的所有模块类型导出到全局注册表
      */
-    void release();
-    
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
+    void exportToGlobal() {
+        auto& globalRegistry = ModuleTypeRegistry::instance();
+        
+        // 导出到全局注册表
+        for (const auto& [name, schemaFunc] : types_) {
+            globalRegistry.registerType(name, schemaFunc);
+        }
+    }
     
 private:
-    std::string cgns_type_; /**< CGNS类型 */
-    double cgns_value_;     /**< CGNS值 */
+    // 存储模块类型名称和对应的参数架构函数
+    std::unordered_map<std::string, std::function<nlohmann::json()>> types_;
 };
 
 /**
- * @brief PreCGNS模块的参数特性特化
+ * @brief 本地模块工厂类
+ * 不直接继承ModuleFactory，而是包含自己的创建者集合
  */
-template <> struct ModuleParamTraits<PreCGNS> {
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-};
-
-/**
- * @brief 预处理Plot3D模块
- */
-class PrePlot3D {
+class LocalFactory {
 public:
     /**
      * @brief 构造函数
-     * @param params 模块参数
      */
-    explicit PrePlot3D(const nlohmann::json& params);
+    LocalFactory() {}
     
     /**
-     * @brief 初始化模块
+     * @brief 注册一个模块类型
+     * @param moduleName 模块名称
+     * @param creator 模块创建函数
      */
-    void initialize();
+    void registerModuleType(
+        const std::string& moduleName, 
+        std::function<bool(AdvancedRegistry*, const std::string&)> creator
+    ) {
+        moduleCreators_[moduleName] = creator;
+    }
     
     /**
-     * @brief 执行模块
+     * @brief 获取所有模块创建函数
+     * @return 模块名称到创建函数的映射
      */
-    void execute();
+    const std::unordered_map<
+        std::string, 
+        std::function<bool(AdvancedRegistry*, const std::string&)>
+    >& getAllModuleCreators() const {
+        return moduleCreators_;
+    }
     
     /**
-     * @brief 释放模块
+     * @brief 将本地工厂中的所有模块创建器导出到全局工厂
      */
-    void release();
-    
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-    
-private:
-    std::string plot3_type_; /**< Plot3D类型 */
-    double plot3d_value_;    /**< Plot3D值 */
-};
-
-/**
- * @brief PrePlot3D模块的参数特性特化
- */
-template <> struct ModuleParamTraits<PrePlot3D> {
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-};
-
-/**
- * @brief 欧拉求解器模块
- */
-class EulerSolver {
-public:
-    /**
-     * @brief 构造函数
-     * @param params 模块参数
-     */
-    explicit EulerSolver(const nlohmann::json& params);
-    
-    /**
-     * @brief 初始化模块
-     */
-    void initialize();
-    
-    /**
-     * @brief 执行模块
-     */
-    void execute();
-    
-    /**
-     * @brief 释放模块
-     */
-    void release();
-    
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
+    void exportToGlobal() {
+        auto& globalFactory = ModuleFactory::instance();
+        
+        // 导出到全局工厂
+        for (const auto& [name, creator] : moduleCreators_) {
+            globalFactory.registerModuleType(name, creator);
+        }
+    }
     
 private:
-    std::string euler_type_; /**< 欧拉类型 */
-    double euler_value__;    /**< 欧拉值 */
+    /// 存储模块类型和它们的创建函数
+    std::unordered_map<
+        std::string, 
+        std::function<bool(AdvancedRegistry*, const std::string&)>
+    > moduleCreators_;
 };
-
-/**
- * @brief EulerSolver模块的参数特性特化
- */
-template <> struct ModuleParamTraits<EulerSolver> {
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-};
-
-/**
- * @brief SA求解器模块
- */
-class SASolver {
-public:
-    /**
-     * @brief 构造函数
-     * @param params 模块参数
-     */
-    explicit SASolver(const nlohmann::json& params);
-    
-    /**
-     * @brief 初始化模块
-     */
-    void initialize();
-    
-    /**
-     * @brief 执行模块
-     */
-    void execute();
-    
-    /**
-     * @brief 释放模块
-     */
-    void release();
-    
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-    
-private:
-    std::string sa_type_;          /**< SA类型 */
-    double convergence_criteria_;  /**< 收敛标准 */
-    int max_iterations_;           /**< 最大迭代次数 */
-};
-
-/**
- * @brief SASolver模块的参数特性特化
- */
-template <> struct ModuleParamTraits<SASolver> {
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-};
-
-/**
- * @brief SST求解器模块
- */
-class SSTSolver {
-public:
-    /**
-     * @brief 构造函数
-     * @param params 模块参数
-     */
-    explicit SSTSolver(const nlohmann::json& params);
-    
-    /**
-     * @brief 初始化模块
-     */
-    void initialize();
-    
-    /**
-     * @brief 执行模块
-     */
-    void execute();
-    
-    /**
-     * @brief 释放模块
-     */
-    void release();
-    
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-    
-private:
-    std::string sst_type_;         /**< SST类型 */
-    double convergence_criteria_;  /**< 收敛标准 */
-    int max_iterations_;           /**< 最大迭代次数 */
-};
-
-/**
- * @brief SSTSolver模块的参数特性特化
- */
-template <> struct ModuleParamTraits<SSTSolver> {
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-};
-
-/**
- * @brief 后处理CGNS模块
- */
-class PostCGNS {
-public:
-    /**
-     * @brief 构造函数
-     * @param params 模块参数
-     */
-    explicit PostCGNS(const nlohmann::json& params);
-    
-    /**
-     * @brief 初始化模块
-     */
-    void initialize();
-    
-    /**
-     * @brief 执行模块
-     */
-    void execute();
-    
-    /**
-     * @brief 释放模块
-     */
-    void release();
-    
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-    
-private:
-    std::string cgns_type_; /**< CGNS类型 */
-    double cgns_value_;     /**< CGNS值 */
-};
-
-/**
- * @brief PostCGNS模块的参数特性特化
- */
-template <> struct ModuleParamTraits<PostCGNS> {
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-};
-
-/**
- * @brief 后处理Plot3D模块
- */
-class PostPlot3D {
-public:
-    /**
-     * @brief 构造函数
-     * @param params 模块参数
-     */
-    explicit PostPlot3D(const nlohmann::json& params);
-    
-    /**
-     * @brief 初始化模块
-     */
-    void initialize();
-    
-    /**
-     * @brief 执行模块
-     */
-    void execute();
-    
-    /**
-     * @brief 释放模块
-     */
-    void release();
-    
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-    
-private:
-    std::string plot3d_type_; /**< Plot3D类型 */
-    double plot3d_value_;     /**< Plot3D值 */
-};
-
-/**
- * @brief PostPlot3D模块的参数特性特化
- */
-template <> struct ModuleParamTraits<PostPlot3D> {
-    /**
-     * @brief 获取参数架构
-     * @return 参数架构JSON对象
-     */
-    static nlohmann::json GetParamSchema();
-};
-
 /** @} */ // end of Modules group
 
 } // namespace ModuleSystem

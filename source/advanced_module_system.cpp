@@ -23,6 +23,9 @@ SOFTWARE.
 *********************************************************************/
 
 #include "advanced_module_system.h"
+#include "preGrid.h"
+#include "solve.h"
+#include "post.h"
 #include <iostream>
 #include <fstream>
 #include <iomanip>
@@ -1686,470 +1689,470 @@ void test() {
     }
 }
 
-/**
- * @brief Constructor for PreCGNS module.
- * @param params The parameters for the module.
- */
-PreCGNS::PreCGNS(const nlohmann::json& params) {
-    cgns_type_ = params.value("cgns_type", "HDF5");
-    cgns_value_ = params.value("cgns_value", 15);
-}
+// /**
+//  * @brief Constructor for PreCGNS module.
+//  * @param params The parameters for the module.
+//  */
+// PreCGNS::PreCGNS(const nlohmann::json& params) {
+//     cgns_type_ = params.value("cgns_type", "HDF5");
+//     cgns_value_ = params.value("cgns_value", 15);
+// }
 
-/**
- * @brief Initializes the PreCGNS module.
- */
-void PreCGNS::initialize() {
-}
+// /**
+//  * @brief Initializes the PreCGNS module.
+//  */
+// void PreCGNS::initialize() {
+// }
 
-/**
- * @brief Executes the PreCGNS module.
- */
-void PreCGNS::execute() {
-}
+// /**
+//  * @brief Executes the PreCGNS module.
+//  */
+// void PreCGNS::execute() {
+// }
 
-/**
- * @brief Releases the PreCGNS module.
- */
-void PreCGNS::release() {
-}
+// /**
+//  * @brief Releases the PreCGNS module.
+//  */
+// void PreCGNS::release() {
+// }
 
-/**
- * @brief Gets the parameter schema for the PreCGNS module.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json PreCGNS::GetParamSchema() {
-    return {
-        {"cgns_type", {
-            {"type", "string"},
-            {"description", "Type of cgns file"},
-            {"enum", {"HDF5", "ADF"}},
-            {"default", "HDF5"}
-        }},
-        {"cgns_value", {
-            {"type", "number"},
-            {"description", "Number of cgns value"},
-            {"minimum", 1},
-            {"maximum", 100},
-            {"default", 10}
-        }}
-    };
-}
+// /**
+//  * @brief Gets the parameter schema for the PreCGNS module.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json PreCGNS::GetParamSchema() {
+//     return {
+//         {"cgns_type", {
+//             {"type", "string"},
+//             {"description", "Type of cgns file"},
+//             {"enum", {"HDF5", "ADF"}},
+//             {"default", "HDF5"}
+//         }},
+//         {"cgns_value", {
+//             {"type", "number"},
+//             {"description", "Number of cgns value"},
+//             {"minimum", 1},
+//             {"maximum", 100},
+//             {"default", 10}
+//         }}
+//     };
+// }
 
-/**
- * @brief Gets the parameter schema for PreCGNS.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json ModuleParamTraits<PreCGNS>::GetParamSchema() {
-    return PreCGNS::GetParamSchema();
-}
+// /**
+//  * @brief Gets the parameter schema for PreCGNS.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json ModuleParamTraits<PreCGNS>::GetParamSchema() {
+//     return PreCGNS::GetParamSchema();
+// }
 
-/**
- * @brief Constructor for PrePlot3D module.
- * @param params The parameters for the module.
- */
-PrePlot3D::PrePlot3D(const nlohmann::json& params) {
-    plot3_type_ = params.value("plot3_type", "ASCII");
-    plot3d_value_ = params.value("plot3_value", 30);
-}
+// /**
+//  * @brief Constructor for PrePlot3D module.
+//  * @param params The parameters for the module.
+//  */
+// PrePlot3D::PrePlot3D(const nlohmann::json& params) {
+//     plot3_type_ = params.value("plot3_type", "ASCII");
+//     plot3d_value_ = params.value("plot3_value", 30);
+// }
 
-/**
- * @brief Initializes the PrePlot3D module.
- */
-void PrePlot3D::initialize() {
-}
+// /**
+//  * @brief Initializes the PrePlot3D module.
+//  */
+// void PrePlot3D::initialize() {
+// }
 
-/**
- * @brief Executes the PrePlot3D module.
- */
-void PrePlot3D::execute() {
-}
+// /**
+//  * @brief Executes the PrePlot3D module.
+//  */
+// void PrePlot3D::execute() {
+// }
 
-/**
- * @brief Releases the PrePlot3D module.
- */
-void PrePlot3D::release() {
-}
+// /**
+//  * @brief Releases the PrePlot3D module.
+//  */
+// void PrePlot3D::release() {
+// }
 
-/**
- * @brief Gets the parameter schema for the PrePlot3D module.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json PrePlot3D::GetParamSchema() {
-    return {
-        {"plot3_type", {
-            {"type", "string"},
-            {"description", "Type of plot3 file"},
-            {"enum", {"ASCII", "Binary"}},
-            {"default", "ASCII"}
-        }},
-        {"plot3_value", {
-            {"type", "number"},
-            {"description", "Number of plot3 value"},
-            {"minimum", 1},
-            {"maximum", 100},
-            {"default", 10}
-        }}
-    };
-}
+// /**
+//  * @brief Gets the parameter schema for the PrePlot3D module.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json PrePlot3D::GetParamSchema() {
+//     return {
+//         {"plot3_type", {
+//             {"type", "string"},
+//             {"description", "Type of plot3 file"},
+//             {"enum", {"ASCII", "Binary"}},
+//             {"default", "ASCII"}
+//         }},
+//         {"plot3_value", {
+//             {"type", "number"},
+//             {"description", "Number of plot3 value"},
+//             {"minimum", 1},
+//             {"maximum", 100},
+//             {"default", 10}
+//         }}
+//     };
+// }
 
-/**
- * @brief Gets the parameter schema for PrePlot3D.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json ModuleParamTraits<PrePlot3D>::GetParamSchema() {
-    return PrePlot3D::GetParamSchema();
-}
+// /**
+//  * @brief Gets the parameter schema for PrePlot3D.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json ModuleParamTraits<PrePlot3D>::GetParamSchema() {
+//     return PrePlot3D::GetParamSchema();
+// }
 
-/**
- * @brief Constructor for EulerSolver module.
- * @param params The parameters for the module.
- */
-EulerSolver::EulerSolver(const nlohmann::json& params) {
-    euler_type_ = params.value("euler_type", "Standard");
-    euler_value__ = params.value("euler_value", 0.5);
-}
+// /**
+//  * @brief Constructor for EulerSolver module.
+//  * @param params The parameters for the module.
+//  */
+// EulerSolver::EulerSolver(const nlohmann::json& params) {
+//     euler_type_ = params.value("euler_type", "Standard");
+//     euler_value__ = params.value("euler_value", 0.5);
+// }
 
-/**
- * @brief Initializes the EulerSolver module.
- */
-void EulerSolver::initialize() {
-}
+// /**
+//  * @brief Initializes the EulerSolver module.
+//  */
+// void EulerSolver::initialize() {
+// }
 
-/**
- * @brief Executes the EulerSolver module.
- */
-void EulerSolver::execute() {
-}
+// /**
+//  * @brief Executes the EulerSolver module.
+//  */
+// void EulerSolver::execute() {
+// }
 
-/**
- * @brief Releases the EulerSolver module.
- */
-void EulerSolver::release() {
-}
+// /**
+//  * @brief Releases the EulerSolver module.
+//  */
+// void EulerSolver::release() {
+// }
 
-/**
- * @brief Gets the parameter schema for the EulerSolver module.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json EulerSolver::GetParamSchema() {
-    return {
-        {"euler_type", {
-            {"type", "string"},
-            {"description", "Type of euler file"},
-            {"enum", {"Standard", "Other"}},
-            {"default", "Standard"}
-        }},
-        {"euler_value", {
-            {"type", "number"},
-            {"description", "Number of euler value"},
-            {"minimum", 0},
-            {"maximum", 10},
-            {"default", 0.5}
-        }}
-    };
-}
+// /**
+//  * @brief Gets the parameter schema for the EulerSolver module.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json EulerSolver::GetParamSchema() {
+//     return {
+//         {"euler_type", {
+//             {"type", "string"},
+//             {"description", "Type of euler file"},
+//             {"enum", {"Standard", "Other"}},
+//             {"default", "Standard"}
+//         }},
+//         {"euler_value", {
+//             {"type", "number"},
+//             {"description", "Number of euler value"},
+//             {"minimum", 0},
+//             {"maximum", 10},
+//             {"default", 0.5}
+//         }}
+//     };
+// }
 
-/**
- * @brief Gets the parameter schema for EulerSolver.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json ModuleParamTraits<EulerSolver>::GetParamSchema() {
-    return EulerSolver::GetParamSchema();
-}
+// /**
+//  * @brief Gets the parameter schema for EulerSolver.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json ModuleParamTraits<EulerSolver>::GetParamSchema() {
+//     return EulerSolver::GetParamSchema();
+// }
 
-/**
- * @brief Constructor for SASolver module.
- * @param params The parameters for the module.
- */
-SASolver::SASolver(const nlohmann::json& params) {
-    sa_type_ = params.value("solver_type", "Standard");
-    convergence_criteria_ = params.value("convergence_criteria", 1e-6);
-    max_iterations_ = params.value("max_iterations", 1000);
-}
+// /**
+//  * @brief Constructor for SASolver module.
+//  * @param params The parameters for the module.
+//  */
+// SASolver::SASolver(const nlohmann::json& params) {
+//     sa_type_ = params.value("solver_type", "Standard");
+//     convergence_criteria_ = params.value("convergence_criteria", 1e-6);
+//     max_iterations_ = params.value("max_iterations", 1000);
+// }
 
-/**
- * @brief Initializes the SASolver module.
- */
-void SASolver::initialize() {
-}
+// /**
+//  * @brief Initializes the SASolver module.
+//  */
+// void SASolver::initialize() {
+// }
 
-/**
- * @brief Executes the SASolver module.
- */
-void SASolver::execute() {
-}
+// /**
+//  * @brief Executes the SASolver module.
+//  */
+// void SASolver::execute() {
+// }
 
-/**
- * @brief Releases the SASolver module.
- */
-void SASolver::release() {
-}
+// /**
+//  * @brief Releases the SASolver module.
+//  */
+// void SASolver::release() {
+// }
 
-/**
- * @brief Gets the parameter schema for the SASolver module.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json SASolver::GetParamSchema() {
-    return {
-        {"solver_type", {
-            {"type", "string"},
-            {"description", "Type of fluid solver"},
-            {"enum", {"Standard", "SA-BC", "SA-DDES","SA-IDDES"}},
-            {"default", "Standard"}
-        }},
-        {"convergence_criteria", {
-            {"type", "number"},
-            {"description", "Convergence criteria for solver"},
-            {"minimum", 1e-10},
-            {"maximum", 1e-3},
-            {"default", 1e-6}
-        }},
-        {"max_iterations", {
-            {"type", "number"},
-            {"description", "Maximum number of iterations"},
-            {"minimum", 10},
-            {"maximum", 10000},
-            {"default", 1000}
-        }}
-    };
-}
+// /**
+//  * @brief Gets the parameter schema for the SASolver module.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json SASolver::GetParamSchema() {
+//     return {
+//         {"solver_type", {
+//             {"type", "string"},
+//             {"description", "Type of fluid solver"},
+//             {"enum", {"Standard", "SA-BC", "SA-DDES","SA-IDDES"}},
+//             {"default", "Standard"}
+//         }},
+//         {"convergence_criteria", {
+//             {"type", "number"},
+//             {"description", "Convergence criteria for solver"},
+//             {"minimum", 1e-10},
+//             {"maximum", 1e-3},
+//             {"default", 1e-6}
+//         }},
+//         {"max_iterations", {
+//             {"type", "number"},
+//             {"description", "Maximum number of iterations"},
+//             {"minimum", 10},
+//             {"maximum", 10000},
+//             {"default", 1000}
+//         }}
+//     };
+// }
 
-/**
- * @brief Gets the parameter schema for SASolver.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json ModuleParamTraits<SASolver>::GetParamSchema() {
-    return SASolver::GetParamSchema();
-}
+// /**
+//  * @brief Gets the parameter schema for SASolver.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json ModuleParamTraits<SASolver>::GetParamSchema() {
+//     return SASolver::GetParamSchema();
+// }
 
-/**
- * @brief Constructor for SSTSolver module.
- * @param params The parameters for the module.
- */
-SSTSolver::SSTSolver(const nlohmann::json& params) {
-    sst_type_ = params.value("solver_type", "Standard");
-    convergence_criteria_ = params.value("convergence_criteria", 1e-6);
-    max_iterations_ = params.value("max_iterations", 1000);
-}
+// /**
+//  * @brief Constructor for SSTSolver module.
+//  * @param params The parameters for the module.
+//  */
+// SSTSolver::SSTSolver(const nlohmann::json& params) {
+//     sst_type_ = params.value("solver_type", "Standard");
+//     convergence_criteria_ = params.value("convergence_criteria", 1e-6);
+//     max_iterations_ = params.value("max_iterations", 1000);
+// }
 
-/**
- * @brief Initializes the SSTSolver module.
- */
-void SSTSolver::initialize() {
-}
+// /**
+//  * @brief Initializes the SSTSolver module.
+//  */
+// void SSTSolver::initialize() {
+// }
 
-/**
- * @brief Executes the SSTSolver module.
- */
-void SSTSolver::execute() {
-}
+// /**
+//  * @brief Executes the SSTSolver module.
+//  */
+// void SSTSolver::execute() {
+// }
 
-/**
- * @brief Releases the SSTSolver module.
- */
-void SSTSolver::release() {
-}
+// /**
+//  * @brief Releases the SSTSolver module.
+//  */
+// void SSTSolver::release() {
+// }
 
-/**
- * @brief Gets the parameter schema for the SSTSolver module.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json SSTSolver::GetParamSchema() {
-    return {
-        {"solver_type", {
-            {"type", "string"},
-            {"description", "Type of fluid solver"},
-            {"enum", {"Standard", "SST-CC", "SA-DDES","SA-IDDES"}},
-            {"default", "Standard"}
-        }},
-        {"convergence_criteria", {
-            {"type", "number"},
-            {"description", "Convergence criteria for solver"},
-            {"minimum", 1e-10},
-            {"maximum", 1e-3},
-            {"default", 1e-6}
-        }},
-        {"max_iterations", {
-            {"type", "number"},
-            {"description", "Maximum number of iterations"},
-            {"minimum", 10},
-            {"maximum", 10000},
-            {"default", 1000}
-        }}
-    };
-}
+// /**
+//  * @brief Gets the parameter schema for the SSTSolver module.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json SSTSolver::GetParamSchema() {
+//     return {
+//         {"solver_type", {
+//             {"type", "string"},
+//             {"description", "Type of fluid solver"},
+//             {"enum", {"Standard", "SST-CC", "SA-DDES","SA-IDDES"}},
+//             {"default", "Standard"}
+//         }},
+//         {"convergence_criteria", {
+//             {"type", "number"},
+//             {"description", "Convergence criteria for solver"},
+//             {"minimum", 1e-10},
+//             {"maximum", 1e-3},
+//             {"default", 1e-6}
+//         }},
+//         {"max_iterations", {
+//             {"type", "number"},
+//             {"description", "Maximum number of iterations"},
+//             {"minimum", 10},
+//             {"maximum", 10000},
+//             {"default", 1000}
+//         }}
+//     };
+// }
 
-/**
- * @brief Gets the parameter schema for SSTSolver.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json ModuleParamTraits<SSTSolver>::GetParamSchema() {
-    return SSTSolver::GetParamSchema();
-}
+// /**
+//  * @brief Gets the parameter schema for SSTSolver.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json ModuleParamTraits<SSTSolver>::GetParamSchema() {
+//     return SSTSolver::GetParamSchema();
+// }
 
-/**
- * @brief Constructor for PostCGNS module.
- * @param params The parameters for the module.
- */
-PostCGNS::PostCGNS(const nlohmann::json& params) {
-    cgns_type_ = params.value("cgns_type", "HDF5");
-    cgns_value_ = params.value("cgns_value", 15);
-}
+// /**
+//  * @brief Constructor for PostCGNS module.
+//  * @param params The parameters for the module.
+//  */
+// PostCGNS::PostCGNS(const nlohmann::json& params) {
+//     cgns_type_ = params.value("cgns_type", "HDF5");
+//     cgns_value_ = params.value("cgns_value", 15);
+// }
 
-/**
- * @brief Initializes the PostCGNS module.
- */
-void PostCGNS::initialize() {
-}
+// /**
+//  * @brief Initializes the PostCGNS module.
+//  */
+// void PostCGNS::initialize() {
+// }
 
-/**
- * @brief Executes the PostCGNS module.
- */
-void PostCGNS::execute() {
-}
+// /**
+//  * @brief Executes the PostCGNS module.
+//  */
+// void PostCGNS::execute() {
+// }
 
-/**
- * @brief Releases the PostCGNS module.
- */
-void PostCGNS::release() {
-}
+// /**
+//  * @brief Releases the PostCGNS module.
+//  */
+// void PostCGNS::release() {
+// }
 
-/**
- * @brief Gets the parameter schema for the PostCGNS module.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json PostCGNS::GetParamSchema() {
-    return {
-        {"cgns_type", {
-            {"type", "string"},
-            {"description", "Type of cgns file"},
-            {"enum", {"HDF5", "ADF"}},
-            {"default", "HDF5"}
-        }},
-        {"cgns_value", {
-            {"type", "number"},
-            {"description", "Number of cgns value"},
-            {"minimum", 1},
-            {"maximum", 100},
-            {"default", 10}
-        }}
-    };
-}
+// /**
+//  * @brief Gets the parameter schema for the PostCGNS module.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json PostCGNS::GetParamSchema() {
+//     return {
+//         {"cgns_type", {
+//             {"type", "string"},
+//             {"description", "Type of cgns file"},
+//             {"enum", {"HDF5", "ADF"}},
+//             {"default", "HDF5"}
+//         }},
+//         {"cgns_value", {
+//             {"type", "number"},
+//             {"description", "Number of cgns value"},
+//             {"minimum", 1},
+//             {"maximum", 100},
+//             {"default", 10}
+//         }}
+//     };
+// }
 
-/**
- * @brief Gets the parameter schema for PostCGNS.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json ModuleParamTraits<PostCGNS>::GetParamSchema() {
-    return PostCGNS::GetParamSchema();
-}
+// /**
+//  * @brief Gets the parameter schema for PostCGNS.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json ModuleParamTraits<PostCGNS>::GetParamSchema() {
+//     return PostCGNS::GetParamSchema();
+// }
 
-/**
- * @brief Constructor for PostPlot3D module.
- * @param params The parameters for the module.
- */
-PostPlot3D::PostPlot3D(const nlohmann::json& params) {
-    plot3d_type_ = params.value("plot3_type", "ASCII");
-    plot3d_value_ = params.value("plot3_value", 30);
-}
+// /**
+//  * @brief Constructor for PostPlot3D module.
+//  * @param params The parameters for the module.
+//  */
+// PostPlot3D::PostPlot3D(const nlohmann::json& params) {
+//     plot3d_type_ = params.value("plot3_type", "ASCII");
+//     plot3d_value_ = params.value("plot3_value", 30);
+// }
 
-/**
- * @brief Initializes the PostPlot3D module.
- */
-void PostPlot3D::initialize() {
-}
+// /**
+//  * @brief Initializes the PostPlot3D module.
+//  */
+// void PostPlot3D::initialize() {
+// }
 
-/**
- * @brief Executes
- */
-void PostPlot3D::execute() {
-}
+// /**
+//  * @brief Executes
+//  */
+// void PostPlot3D::execute() {
+// }
 
-/**
- * @brief Releases the PostPlot3D module.
- */
-void PostPlot3D::release() {
-}
+// /**
+//  * @brief Releases the PostPlot3D module.
+//  */
+// void PostPlot3D::release() {
+// }
 
-/**
- * @brief Gets the parameter schema for the PostPlot3D module.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json PostPlot3D::GetParamSchema() {
-    return {
-        {"plot3_type", {
-            {"type", "string"},
-            {"description", "Type of plot3 file"},
-            {"enum", {"ASCII", "Binary"}},
-            {"default", "ASCII"}
-        }},
-        {"plot3_value", {
-            {"type", "number"},
-            {"description", "Number of plot3 value"},
-            {"minimum", 1},
-            {"maximum", 100},
-            {"default", 30}
-        }}
-    };
-}
+// /**
+//  * @brief Gets the parameter schema for the PostPlot3D module.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json PostPlot3D::GetParamSchema() {
+//     return {
+//         {"plot3_type", {
+//             {"type", "string"},
+//             {"description", "Type of plot3 file"},
+//             {"enum", {"ASCII", "Binary"}},
+//             {"default", "ASCII"}
+//         }},
+//         {"plot3_value", {
+//             {"type", "number"},
+//             {"description", "Number of plot3 value"},
+//             {"minimum", 1},
+//             {"maximum", 100},
+//             {"default", 30}
+//         }}
+//     };
+// }
 
-/**
- * @brief Gets the parameter schema for PostPlot3D.
- * @return A JSON object representing the parameter schema.
- */
-nlohmann::json ModuleParamTraits<PostPlot3D>::GetParamSchema() {
-    return PostPlot3D::GetParamSchema();
-}
+// /**
+//  * @brief Gets the parameter schema for PostPlot3D.
+//  * @return A JSON object representing the parameter schema.
+//  */
+// nlohmann::json ModuleParamTraits<PostPlot3D>::GetParamSchema() {
+//     return PostPlot3D::GetParamSchema();
+// }
 
 /**
  * @brief Constructor for ModuleRegistryInitializer, registers all module types.
  */
 ModuleRegistryInitializer::ModuleRegistryInitializer() {
-    ModuleTypeRegistry::instance().registerType(
-        "PreCGNS", 
-        []() -> nlohmann::json { return PreCGNS::GetParamSchema(); }
-    );
+    // ModuleTypeRegistry::instance().registerType(
+    //     "PreCGNS", 
+    //     []() -> nlohmann::json { return PreCGNS::GetParamSchema(); }
+    // );
     
-    ModuleTypeRegistry::instance().registerType(
-        "PrePlot3D", 
-        []() -> nlohmann::json { return PrePlot3D::GetParamSchema(); }
-    );
+    // ModuleTypeRegistry::instance().registerType(
+    //     "PrePlot3D", 
+    //     []() -> nlohmann::json { return PrePlot3D::GetParamSchema(); }
+    // );
     
-    ModuleTypeRegistry::instance().registerType(
-        "EulerSolver", 
-        []() -> nlohmann::json { return EulerSolver::GetParamSchema(); }
-    );
+    // ModuleTypeRegistry::instance().registerType(
+    //     "EulerSolver", 
+    //     []() -> nlohmann::json { return EulerSolver::GetParamSchema(); }
+    // );
 
-    ModuleTypeRegistry::instance().registerType(
-        "SASolver", 
-        []() -> nlohmann::json { return SASolver::GetParamSchema(); }
-    );
+    // ModuleTypeRegistry::instance().registerType(
+    //     "SASolver", 
+    //     []() -> nlohmann::json { return SASolver::GetParamSchema(); }
+    // );
 
-    ModuleTypeRegistry::instance().registerType(
-        "SSTSolver", 
-        []() -> nlohmann::json { return SSTSolver::GetParamSchema(); }
-    );
+    // ModuleTypeRegistry::instance().registerType(
+    //     "SSTSolver", 
+    //     []() -> nlohmann::json { return SSTSolver::GetParamSchema(); }
+    // );
 
-    ModuleTypeRegistry::instance().registerType(
-        "PostCGNS", 
-        []() -> nlohmann::json { return PostCGNS::GetParamSchema(); }
-    );
+    // ModuleTypeRegistry::instance().registerType(
+    //     "PostCGNS", 
+    //     []() -> nlohmann::json { return PostCGNS::GetParamSchema(); }
+    // );
 
-    ModuleTypeRegistry::instance().registerType(
-        "PostPlot3D", 
-        []() -> nlohmann::json { return PostPlot3D::GetParamSchema(); }
-    );
+    // ModuleTypeRegistry::instance().registerType(
+    //     "PostPlot3D", 
+    //     []() -> nlohmann::json { return PostPlot3D::GetParamSchema(); }
+    // );
 
     // 将模块关联到对应的引擎
-    assignModuleToEngine("PreCGNS", "PreGrid");
+    //assignModuleToEngine("PreCGNS", "PreGrid");
     //assignModuleToEngine("PrePlot3D", "PreGrid");
     
-    assignModuleToEngine("EulerSolver", "Solve");
-    assignModuleToEngine("SASolver", "Solve");
-    assignModuleToEngine("SSTSolver", "Solve");
+    // assignModuleToEngine("EulerSolver", "Solve");
+    // assignModuleToEngine("SASolver", "Solve");
+    // assignModuleToEngine("SSTSolver", "Solve");
     
-    assignModuleToEngine("PostCGNS", "Post");
-    assignModuleToEngine("PostPlot3D", "Post");
+    // assignModuleToEngine("PostCGNS", "Post");
+    // assignModuleToEngine("PostPlot3D", "Post");
 }
 
 /**
@@ -2158,47 +2161,47 @@ ModuleRegistryInitializer::ModuleRegistryInitializer() {
 void ModuleFactoryInitializer::init() {
     ModuleFactory& factory = ModuleFactory::instance();
     
-    factory.registerModuleType("PreCGNS", 
-        [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-            reg->Register<PreCGNS>(name);
-            return true;
-        });
+    // factory.registerModuleType("PreCGNS", 
+    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
+    //         reg->Register<PreCGNS>(name);
+    //         return true;
+    //     });
     
-    factory.registerModuleType("PrePlot3D", 
-        [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-            reg->Register<PrePlot3D>(name);
-            return true;
-        });
+    // factory.registerModuleType("PrePlot3D", 
+    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
+    //         reg->Register<PrePlot3D>(name);
+    //         return true;
+    //     });
     
-    factory.registerModuleType("EulerSolver", 
-        [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-            reg->Register<EulerSolver>(name);
-            return true;
-        });
+    // factory.registerModuleType("EulerSolver", 
+    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
+    //         reg->Register<EulerSolver>(name);
+    //         return true;
+    //     });
     
-    factory.registerModuleType("SASolver", 
-        [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-            reg->Register<SASolver>(name);
-            return true;
-        });
+    // factory.registerModuleType("SASolver", 
+    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
+    //         reg->Register<SASolver>(name);
+    //         return true;
+    //     });
 
-    factory.registerModuleType("SSTSolver", 
-        [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-            reg->Register<SSTSolver>(name);
-            return true;
-        });
+    // factory.registerModuleType("SSTSolver", 
+    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
+    //         reg->Register<SSTSolver>(name);
+    //         return true;
+    //     });
 
-    factory.registerModuleType("PostCGNS", 
-        [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-            reg->Register<PostCGNS>(name);
-            return true;
-        });
+    // factory.registerModuleType("PostCGNS", 
+    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
+    //         reg->Register<PostCGNS>(name);
+    //         return true;
+    //     });
 
-    factory.registerModuleType("PostPlot3D", 
-        [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-            reg->Register<PostPlot3D>(name);
-            return true;
-        });
+    // factory.registerModuleType("PostPlot3D", 
+    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
+    //         reg->Register<PostPlot3D>(name);
+    //         return true;
+    //     });
 }
 
 /**
