@@ -48,52 +48,8 @@ int main(int argc, char* argv[]) {
     setvbuf(stderr, nullptr, _IONBF, 0);
 #endif
 
-    std::string configFile = "./config.json";
-    
-    if (argc > 1) {
-        if (std::string(argv[1]) == "get") {
-            if (argc > 2) {
-                configFile = argv[2];
-                if (configFile.find('.') == std::string::npos) configFile += ".json";
-            }
-            ModuleSystem::getConfig(configFile);
-            return 0;
-        } else {
-            configFile = argv[1];
-            if (configFile.find('.') == std::string::npos) configFile += ".json";
-        }
-    }
-    
-    nlohmann::json config;
-    std::cout << "正在加载配置文件: " << configFile << std::endl;
-    
-    std::ifstream file(configFile);
-    if (!file.is_open()) {
-        std::cerr << "无法打开配置文件: " << configFile << std::endl;
-        std::cerr << "请确认文件路径正确且文件存在。" << std::endl;
-        std::cerr << "使用 './programName get " << configFile << "' 生成默认配置，或者 './programName' 使用默认配置文件路径。" << std::endl;
-        return 1;
-    }
-    
-    // 解析JSON文件
-    file >> config;
-    file.close();
-    
-    std::string outputFile;
-    std::filesystem::path configPath(configFile);
-    std::filesystem::path parentDir = configPath.parent_path();
-    if (parentDir.empty()) parentDir = ".";
-    std::filesystem::path outputPath = parentDir / (configPath.stem().string() + "_used" + configPath.extension().string());
-    outputFile = outputPath.string();
-    
-    // 进行参数验证
-    if (!ModuleSystem::paramValidation(config)) {
-        std::cerr << "配置文件验证失败，程序退出" << std::endl;
-        return 1;
-    }
-    
-    // 保存使用的配置
-    ModuleSystem::saveUsedConfig(config, outputFile);
+    // 获取配置
+    ModuleSystem::getConfig(argc, argv);
     
     // 验证通过后执行配置
     ModuleSystem::run();

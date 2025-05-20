@@ -868,6 +868,13 @@ nlohmann::json createDefaultConfig();
 void getConfig(const std::string& configFile);
 
 /**
+ * @brief 获取配置
+ * @param argc 参数个数
+ * @param argv 参数值数组 
+ */
+void getConfig(int argc, char* argv[]);
+
+/**
  * @brief 获取配置信息
  * @param registry 高级注册表共享指针
  * @param engine 嵌套引擎唯一指针
