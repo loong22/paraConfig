@@ -303,7 +303,7 @@ void engineContext::releaseModule(const std::string& name) {
     } else {
         std::cout << "错误: 尝试释放不存在的模块 '" << name 
                   << "'，可能该模块已经被释放或从未创建过" << std::endl;
-        return;
+        exit(1);
     }
 }
 
