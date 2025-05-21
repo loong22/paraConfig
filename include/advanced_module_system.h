@@ -218,113 +218,7 @@ private:
     ~ModuleFactory() = default;
 
     // 允许模块工厂集合和单例访问私有成员
-    friend class ModuleFactoryCollection;
     friend class std::shared_ptr<ModuleFactory>;
-};
-
-/**
- * @brief 模块工厂集合类
- */
-class ModuleFactoryCollection {
-public:
-    /**
-     * @brief 获取模块工厂集合单例实例
-     * @return 模块工厂集合实例的引用
-     */
-    static ModuleFactoryCollection& instance() {
-        static ModuleFactoryCollection instance;
-        return instance;
-    }
-    
-    /**
-     * @brief 根据名称获取模块工厂，如不存在则创建
-     * @param factoryName 工厂名称，默认为空字符串
-     * @return 模块工厂的共享指针
-     */
-    std::shared_ptr<ModuleFactory> getFactory(const std::string& factoryName = "") {
-        std::string name = factoryName.empty() ? defaultFactoryName_ : factoryName;
-        
-        if (factories_.find(name) == factories_.end()) {
-            factories_[name] = createModuleFactoryPtr();
-        }
-        
-        return factories_[name];
-    }
-    
-    /**
-     * @brief 设置默认工厂名称
-     * @param name 工厂名称
-     */
-    void setDefaultFactoryName(const std::string& name) {
-        defaultFactoryName_ = name;
-        if (factories_.find(name) == factories_.end()) {
-            factories_[name] = createModuleFactoryPtr();
-        }
-    }
-    
-    /**
-     * @brief 检查工厂是否存在
-     * @param name 工厂名称
-     * @return 工厂是否存在
-     */
-    bool hasFactory(const std::string& name) const {
-        return factories_.find(name) != factories_.end();
-    }
-    
-    /**
-     * @brief 根据配置添加模块到指定工厂
-     * @param factoryName 工厂名称
-     * @param moduleName 模块名称
-     * @return 添加是否成功
-     */
-    bool addModuleToFactory(const std::string& factoryName, const std::string& moduleName) {
-        auto factory = getFactory(factoryName);
-        // 从全局模块类型注册中获取模块创建函数
-        auto moduleCreator = ModuleFactory::instance().getModuleCreator(moduleName);
-        if (moduleCreator) {
-            factory->registerModuleType(moduleName, moduleCreator);
-            return true;
-        }
-        return false;
-    }
-    
-    /**
-     * @brief 获取所有工厂名称
-     * @return 工厂名称列表
-     */
-    std::vector<std::string> getAllFactoryNames() const {
-        std::vector<std::string> names;
-        for (const auto& [name, _] : factories_) {
-            names.push_back(name);
-        }
-        return names;
-    }
-    
-private:
-    /// 存储多个命名的模块工厂
-    std::unordered_map<std::string, std::shared_ptr<ModuleFactory>> factories_;
-    
-    /// 默认工厂名称
-    std::string defaultFactoryName_ = "default";
-    
-    /**
-     * @brief 使用自定义创建共享指针的方式
-     * @return 模块工厂的共享指针
-     */
-    std::shared_ptr<ModuleFactory> createModuleFactoryPtr() {
-        ModuleFactory* factory = new ModuleFactory();
-        return std::shared_ptr<ModuleFactory>(factory, [](ModuleFactory* ptr) { 
-            delete ptr; 
-        });
-    }
-    
-    /**
-     * @brief 构造函数，创建默认工厂
-     */
-    ModuleFactoryCollection() {
-        // 创建默认工厂
-        factories_["default"] = createModuleFactoryPtr();
-    }
 };
 
 /**
@@ -740,21 +634,10 @@ public:
      */
     nlohmann::json getDefaultConfig() const;
     
-    /**
-     * @brief 获取静态引擎池
-     * @return 静态引擎池的JSON对象引用
-     */
-    static const nlohmann::json& getStaticEnginePool() {
-        return staticEnginePool_;
-    }
-    
 private:
     AdvancedRegistry& registry_; /**< 高级注册表引用 */
     std::unordered_map<std::string, std::function<void(engineContext&)>> enginePool_; /**< 引擎池 */
     nlohmann::json parameters_; /**< 参数 */
-    
-    /// 静态成员变量 - 存储引擎池
-    static nlohmann::json staticEnginePool_;
 };
 
 /**
@@ -965,44 +848,10 @@ nlohmann::json createengineInfo();
 
 /**
  * @brief 获取配置
- * @param configFile 配置文件路径
- */
-void getConfig(const std::string& configFile);
-
-/**
- * @brief 获取配置
  * @param argc 参数个数
  * @param argv 参数值数组 
  */
 void getConfig(int argc, char* argv[]);
-
-/**
- * @brief 获取配置信息
- * @param registry 高级注册表共享指针
- * @param engine 嵌套引擎唯一指针
- * @param outputFile 输出文件路径
- */
-void getConfigInfo(
-    std::shared_ptr<ModuleSystem::AdvancedRegistry> registry, 
-    std::unique_ptr<ModuleSystem::Nestedengine>& engine, 
-    const std::string& outputFile
-);
-
-/**
- * @brief 保存使用的配置
- * @param moduleConfig 模块配置JSON对象
- * @param enabledModules 已启用的模块集合
- * @param engine 引擎JSON对象
- * @param globalParams 全局参数JSON对象
- * @param outputFile 输出文件路径
- */
-void saveUsedConfig(
-    const nlohmann::json& moduleConfig, 
-    const std::unordered_set<std::string>& enabledModules, 
-    const nlohmann::json& engine,
-    const nlohmann::json& globalParams,
-    const std::string& outputFile
-);
 
 /**
  * @brief 验证参数
@@ -1048,13 +897,6 @@ void run();
  * @return 验证是否通过
  */
 bool paramValidation(const nlohmann::json& config);
-
-/**
- * @brief 保存使用的配置
- * @param config 配置JSON对象
- * @param outputFile 输出文件路径
- */
-void saveUsedConfig(const nlohmann::json& config, const std::string& outputFile);
 
 /**
  * @brief 测试模块系统
@@ -1498,6 +1340,44 @@ private:
         std::function<bool(AdvancedRegistry*, const std::string&)>
     > moduleCreators_;
 };
-/** @} */ // end of Modules group
+
+/**
+ * @brief 创建特定引擎的配置信息
+ * @param engineName 引擎名称
+ * @return 引擎特定的配置JSON对象
+ */
+nlohmann::json createEngineSpecificInfo(const std::string& engineName);
+
+/**
+ * @brief 为指定引擎创建模块配置
+ * @param engineName 引擎名称
+ * @return 引擎相关模块的配置JSON对象
+ */
+nlohmann::json createModuleConfigForEngine(const std::string& engineName);
+
+/**
+ * @brief 生成所有引擎和模块的配置模板
+ * @param baseDir 模板文件保存的基础目录
+ */
+void generateTemplateConfigs(const std::string& baseDir);
+
+/**
+ * @brief 保存按引擎分离的实际使用配置
+ * @param config 合并后的完整配置
+ * @param configDir 配置文件保存目录
+ */
+void saveUsedConfigs(const nlohmann::json& config, const std::string& configDir);
+
+/**
+ * @brief 获取引擎中包含的所有模块
+ * @param engineName 引擎名称
+ * @param config 完整配置
+ * @return 引擎中包含的所有模块名称集合
+ */
+std::unordered_set<std::string> getEngineModules(const std::string& engineName, const nlohmann::json& config);
+
+
+
+
 
 } // namespace ModuleSystem

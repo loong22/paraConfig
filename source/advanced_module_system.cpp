@@ -387,6 +387,363 @@ nlohmann::json Nestedengine::getDefaultConfig() const {
 }
 
 /**
+ * @brief 创建特定引擎的配置信息
+ * @param engineName 引擎名称
+ * @return 引擎特定的配置JSON对象
+ */
+nlohmann::json createEngineSpecificInfo(const std::string& engineName) {
+    nlohmann::json engineInfo;
+    engineInfo["engine"] = nlohmann::json::object();
+    engineInfo["engine"]["enginePool"] = nlohmann::json::array();
+    
+    // 从全局引擎池中获取特定引擎信息
+    auto fullEngineInfo = createengineInfo();
+    
+    // 查找指定的引擎
+    for (auto& engine : fullEngineInfo["enginePool"]) {
+        if (engine["name"] == engineName) {
+            // 创建该引擎的特定信息
+            engineInfo["engine"]["enginePool"].push_back(engine);
+            
+            // 处理子引擎
+            if (engineName == "mainProcess" && engine.contains("subenginePool")) {
+                // 主引擎只需要列出子引擎的基本信息，不包含子引擎的模块和子引擎的子引擎
+                for (const auto& subEngineName : engine["subenginePool"]) {
+                    for (auto& subEngine : fullEngineInfo["enginePool"]) {
+                        if (subEngine["name"] == subEngineName) {
+                            // 创建简化版本的子引擎信息
+                            nlohmann::json simplifiedSubEngine;
+                            simplifiedSubEngine["name"] = subEngine["name"];
+                            simplifiedSubEngine["description"] = subEngine["description"];
+                            simplifiedSubEngine["enabled"] = subEngine["enabled"];
+                            
+                            // 不添加modules和subenginePool
+                            
+                            engineInfo["engine"]["enginePool"].push_back(simplifiedSubEngine);
+                            break;
+                        }
+                    }
+                }
+            } else if (engine.contains("subenginePool")) {
+                // 非主引擎需要添加子引擎的完整信息
+                for (const auto& subEngineName : engine["subenginePool"]) {
+                    for (auto& subEngine : fullEngineInfo["enginePool"]) {
+                        if (subEngine["name"] == subEngineName) {
+                            engineInfo["engine"]["enginePool"].push_back(subEngine);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            break;
+        }
+    }
+    
+    return engineInfo;
+}
+
+/**
+ * @brief Creates a module configuration for the specified engine.
+ * @param engineName The name of the engine.
+ * @return A JSON object representing the module configuration.
+ */
+nlohmann::json createModuleConfigForEngine(const std::string& engineName) {
+    nlohmann::json moduleConfig;
+    moduleConfig["config"] = nlohmann::json::object();
+    
+    // 添加全局配置参数
+    if (engineName == "mainProcess") {
+        // 修复：使用临时对象直接调用函数，而不是尝试绑定到引用
+        auto defaultConfig = ModuleSystem::Nestedengine(*(new ModuleSystem::AdvancedRegistry())).getDefaultConfig();
+        moduleConfig["config"] = defaultConfig;
+    }
+    
+    // 确定引擎包含的所有模块（不管是否启用）
+    std::unordered_set<std::string> engineModules;
+    
+    // 从引擎配置中获取模块列表
+    auto engineInfo = createEngineSpecificInfo(engineName);
+    for (const auto& engine : engineInfo["engine"]["enginePool"]) {
+        if (engine.contains("modules")) {
+            for (const auto& module : engine["modules"]) {
+                // 不再检查模块是否启用，只要存在就添加到模块列表中
+                engineModules.insert(module["name"]);
+            }
+        }
+    }
+    
+    // 为这些模块添加配置
+    auto fullRegistry = createRegistryInfo();
+    for (const auto& module : fullRegistry["modules"]) {
+        std::string moduleName = module["name"];
+        if (engineModules.find(moduleName) != engineModules.end()) {
+            // 收集模块的所有参数
+            for (const auto& param : module["parameters"].items()) {
+                moduleConfig["config"][moduleName][param.key()] = param.value()["default"];
+            }
+        }
+    }
+    
+    return moduleConfig;
+}
+
+
+/**
+ * @brief 生成所有引擎和模块的配置模板
+ * @param baseDir 模板文件保存的基础目录
+ */
+void generateTemplateConfigs(const std::string& baseDir) {
+    std::cout << "正在生成引擎和模块配置模板..." << std::endl;
+    
+    // 确保目标目录存在 - 支持相对路径和绝对路径
+    std::filesystem::path dirPath(baseDir);
+    std::filesystem::create_directories(dirPath);
+    
+    // 生成主引擎配置 - 只包含mainProcess引擎的信息和全局配置
+    nlohmann::json mainConfig;
+    
+    // 全局配置参数
+    mainConfig["config"] = ModuleSystem::Nestedengine(*(new ModuleSystem::AdvancedRegistry())).getDefaultConfig();
+    
+    // 仅添加主引擎信息，不包含其他引擎
+    mainConfig["engine"] = nlohmann::json::object();
+    mainConfig["engine"]["enginePool"] = nlohmann::json::array();
+    
+    // 查找主引擎并添加
+    auto fullEngineInfo = createengineInfo();
+    for (auto& engine : fullEngineInfo["enginePool"]) {
+        if (engine["name"] == "mainProcess") {
+            mainConfig["engine"]["enginePool"].push_back(engine);
+            break;
+        }
+    }
+    
+    std::filesystem::path mainFilePath = dirPath / "template_engine_mainProcess.json";
+    std::ofstream mainFile(mainFilePath);
+    if (mainFile.is_open()) {
+        mainFile << std::setw(4) << mainConfig << std::endl;
+        mainFile.close();
+        std::cout << "已生成主引擎配置: " << mainFilePath.string() << std::endl;
+    } else {
+        std::cerr << "无法创建文件: " << mainFilePath.string() << std::endl;
+    }
+    
+    // 生成PreGrid引擎配置
+    nlohmann::json preGridConfig = createEngineSpecificInfo("PreGrid");
+    nlohmann::json preGridModuleConfig = createModuleConfigForEngine("PreGrid");
+    preGridConfig["config"] = preGridModuleConfig["config"];
+    
+    std::filesystem::path preGridFilePath = dirPath / "template_engine_PreGrid.json";
+    std::ofstream preGridFile(preGridFilePath);
+    if (preGridFile.is_open()) {
+        preGridFile << std::setw(4) << preGridConfig << std::endl;
+        preGridFile.close();
+        std::cout << "已生成PreGrid引擎配置: " << preGridFilePath.string() << std::endl;
+    } else {
+        std::cerr << "无法创建文件: " << preGridFilePath.string() << std::endl;
+    }
+    
+    // 生成Solve引擎配置
+    nlohmann::json solveConfig = createEngineSpecificInfo("Solve");
+    nlohmann::json solveModuleConfig = createModuleConfigForEngine("Solve");
+    solveConfig["config"] = solveModuleConfig["config"];
+    
+    std::filesystem::path solveFilePath = dirPath / "template_engine_Solve.json";
+    std::ofstream solveFile(solveFilePath);
+    if (solveFile.is_open()) {
+        solveFile << std::setw(4) << solveConfig << std::endl;
+        solveFile.close();
+        std::cout << "已生成Solve引擎配置: " << solveFilePath.string() << std::endl;
+    } else {
+        std::cerr << "无法创建文件: " << solveFilePath.string() << std::endl;
+    }
+    
+    // 生成Post引擎配置
+    nlohmann::json postConfig = createEngineSpecificInfo("Post");
+    nlohmann::json postModuleConfig = createModuleConfigForEngine("Post");
+    postConfig["config"] = postModuleConfig["config"];
+    
+    std::filesystem::path postFilePath = dirPath / "template_engine_Post.json";
+    std::ofstream postFile(postFilePath);
+    if (postFile.is_open()) {
+        postFile << std::setw(4) << postConfig << std::endl;
+        postFile.close();
+        std::cout << "已生成Post引擎配置: " << postFilePath.string() << std::endl;
+    } else {
+        std::cerr << "无法创建文件: " << postFilePath.string() << std::endl;
+    }
+    
+    // 生成模块注册信息
+    nlohmann::json registryConfig;
+    registryConfig["registry"] = createRegistryInfo();
+    
+    std::filesystem::path registryFilePath = dirPath / "template_registry_module.json";
+    std::ofstream registryFile(registryFilePath);
+    if (registryFile.is_open()) {
+        registryFile << std::setw(4) << registryConfig << std::endl;
+        registryFile.close();
+        std::cout << "已生成模块注册配置: " << registryFilePath.string() << std::endl;
+    } else {
+        std::cerr << "无法创建文件: " << registryFilePath.string() << std::endl;
+    }
+    
+    // 正常退出，避免访问ConfigurationStorage引起的崩溃
+    exit(0);
+}
+
+/**
+ * @brief Saves the used configurations for each engine and module.
+ * @param config The merged configuration JSON object.
+ * @param configDir The directory where the configuration files will be saved.
+ */
+void saveUsedConfigs(const nlohmann::json& config, const std::string& configDir) {
+    auto& storage = ConfigurationStorage::instance();
+    
+    // 获取全部配置
+    nlohmann::json usedConfig = config;
+    
+    // 根据引擎分离配置
+    std::vector<std::string> engineNames = {"mainProcess", "PreGrid", "Solve", "Post"};
+    
+    for (const auto& engineName : engineNames) {
+        nlohmann::json engineConfig;
+        
+        // 获取引擎特定信息
+        engineConfig["engine"] = nlohmann::json::object();
+        engineConfig["engine"]["enginePool"] = nlohmann::json::array();
+        
+        // 对于主引擎，简化处理方式
+        if (engineName == "mainProcess") {
+            // 查找主引擎
+            for (const auto& engine : usedConfig["engine"]["enginePool"]) {
+                if (engine["name"] == engineName) {
+                    // 只添加主引擎本身，不添加子引擎作为独立条目
+                    engineConfig["engine"]["enginePool"].push_back(engine);
+                    break;
+                }
+            }
+            
+            // 复制全局配置参数（不是对象的参数）
+            engineConfig["config"] = nlohmann::json::object();
+            for (auto it = usedConfig["config"].begin(); it != usedConfig["config"].end(); ++it) {
+                if (!it.key().empty() && it.key()[0] != '_' && !it.value().is_object()) {
+                    engineConfig["config"][it.key()] = it.value();
+                }
+            }
+        } 
+        // 对于非主引擎，保持原有处理方式
+        else {
+            // 查找当前引擎
+            for (const auto& engine : usedConfig["engine"]["enginePool"]) {
+                if (engine["name"] == engineName) {
+                    // 添加当前引擎信息
+                    engineConfig["engine"]["enginePool"].push_back(engine);
+                    
+                    // 如果有子引擎，也添加子引擎的详细信息
+                    if (engine.contains("subenginePool")) {
+                        for (const auto& subEngineName : engine["subenginePool"]) {
+                            for (const auto& subEngine : usedConfig["engine"]["enginePool"]) {
+                                if (subEngine["name"] == subEngineName) {
+                                    engineConfig["engine"]["enginePool"].push_back(subEngine);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    break;
+                }
+            }
+            
+            // 为引擎相关模块获取配置
+            engineConfig["config"] = nlohmann::json::object();
+            std::unordered_set<std::string> engineModules = getEngineModules(engineName, usedConfig);
+            for (const auto& moduleName : engineModules) {
+                if (usedConfig["config"].contains(moduleName)) {
+                    engineConfig["config"][moduleName] = usedConfig["config"][moduleName];
+                }
+            }
+        }
+        
+        // 写入文件
+        std::string outputFile = configDir + "config_engine_" + engineName + "_2.json";
+        std::ofstream file(outputFile);
+        if (file.is_open()) {
+            file << std::setw(4) << engineConfig << std::endl;
+            file.close();
+            std::cout << "已保存引擎 " << engineName << " 的实际使用配置到 " << outputFile << std::endl;
+        } else {
+            std::cerr << "无法写入文件 " << outputFile << std::endl;
+        }
+    }
+    
+    // 保存模块注册信息
+    nlohmann::json registryConfig;
+    registryConfig["registry"] = usedConfig["registry"];
+    
+    std::string registryFile = configDir + "config_registry_module_2.json";
+    std::ofstream file(registryFile);
+    if (file.is_open()) {
+        file << std::setw(4) << registryConfig << std::endl;
+        file.close();
+        std::cout << "已保存模块注册信息到 " << registryFile << std::endl;
+    } else {
+        std::cerr << "无法写入文件 " << registryFile << std::endl;
+    }
+}
+
+
+
+/**
+ * @brief Gets all modules for a specific engine.
+ * @param engineName The name of the engine.
+ * @param config The configuration JSON object.
+ * @return A set of module names associated with the engine.
+ */
+std::unordered_set<std::string> getEngineModules(const std::string& engineName, const nlohmann::json& config) {
+    std::unordered_set<std::string> modules;
+    std::unordered_set<std::string> processedEngines;
+    
+    // 递归函数，收集引擎及其子引擎中的所有模块
+    std::function<void(const std::string&)> collectModules = [&](const std::string& currEngineName) {
+        // 防止循环引用
+        if (processedEngines.find(currEngineName) != processedEngines.end()) {
+            return;
+        }
+        processedEngines.insert(currEngineName);
+        
+        // 查找引擎
+        for (const auto& engine : config["engine"]["enginePool"]) {
+            if (engine["name"] == currEngineName) {
+                // 收集当前引擎的模块
+                if (engine.contains("modules")) {
+                    for (const auto& module : engine["modules"]) {
+                        // 无论模块是否启用，都添加到列表中
+                        modules.insert(module["name"]);
+                    }
+                }
+                
+                // 递归处理子引擎
+                if (engine.contains("subenginePool")) {
+                    for (const auto& subEngineName : engine["subenginePool"]) {
+                        collectModules(subEngineName);
+                    }
+                }
+                
+                break;
+            }
+        }
+    };
+    
+    collectModules(engineName);
+    return modules;
+}
+
+
+
+
+/**
  * @brief Executes the specified engine.
  * @param engineName The name of the engine to execute.
  * @return True if execution was successful, false otherwise.
@@ -644,190 +1001,129 @@ nlohmann::json createengineInfo() {
 
 /**
  * @brief Generates a default configuration and saves it to a file.
- * @param configFile The path to the configuration file.
- */
-void getConfig(const std::string& configFile){
-    auto registry = std::make_shared<ModuleSystem::AdvancedRegistry>();
-    auto engine = std::make_unique<ModuleSystem::Nestedengine>(*registry);
-    
-    for (const auto& moduleType : ModuleSystem::ModuleTypeRegistry::instance().getModuleTypes()) {
-        if (!ModuleSystem::ModuleFactory::instance().registerModule(registry.get(), moduleType.name)) {
-            std::cerr << "警告: 无法通过工厂注册模块 '" << moduleType.name << "'" << std::endl;
-        }
-    }
-    
-    std::cout << "生成默认配置模板到 " << configFile << "..." << std::endl;
-    ModuleSystem::getConfigInfo(registry, engine, configFile);
-}
-
-/**
- * @brief Generates a default configuration and saves it to a file.
  * @param argc The number of command line arguments.
  * @param argv The command line arguments.
  */
 void getConfig(int argc, char* argv[]){
-    std::string configFile = "./config.json";
-    
-    if (argc > 1) {
-        if (std::string(argv[1]) == "get") {
-            if (argc > 2) {
-                configFile = argv[2];
-                if (configFile.find('.') == std::string::npos) configFile += ".json";
+    std::string configDir = "./";
+    bool generateTemplates = false;
+    std::string templateDir = "./";
+
+    // 解析命令行参数
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg == "--config-dir" && i + 1 < argc) {
+            configDir = argv[++i];
+            if (configDir.back() != '/') configDir += '/';
+        } else if (arg == "--generate-templates") {
+            generateTemplates = true;
+            // 检查是否有指定目录参数
+            if (i + 1 < argc && argv[i+1][0] != '-') {
+                templateDir = argv[++i];
             }
-            ModuleSystem::getConfig(configFile);
-            exit(0);
-        }else {
-            configFile = argv[1];
-            if (configFile.find('.') == std::string::npos) configFile += ".json";
         }
     }
-
-    nlohmann::json config;
-    std::cout << "正在加载配置文件: " << configFile << std::endl;
     
-    std::ifstream file(configFile);
-    if (!file.is_open()) {
-        std::cerr << "无法打开配置文件: " << configFile << std::endl;
-        std::cerr << "请确认文件路径正确且文件存在。" << std::endl;
-        std::cerr << "使用 './programName get " << configFile << "' 生成默认配置，或者 './programName' 使用默认配置文件路径。" << std::endl;
-        exit(1);
+    if (generateTemplates) {
+        generateTemplateConfigs(templateDir);
+        return;
     }
     
-    // 解析JSON文件
-    file >> config;
-    file.close();
+    // 确保配置目录存在
+    std::filesystem::create_directories(configDir);
     
-    std::string outputFile;
-    std::filesystem::path configPath(configFile);
-    std::filesystem::path parentDir = configPath.parent_path();
-    if (parentDir.empty()) parentDir = ".";
-    std::filesystem::path outputPath = parentDir / (configPath.stem().string() + "_used" + configPath.extension().string());
-    outputFile = outputPath.string();
+    // 合并配置文件
+    nlohmann::json mergedConfig;
     
-    // 进行参数验证
-    if (!ModuleSystem::paramValidation(config)) {
-        std::cerr << "配置文件验证失败，程序退出" << std::endl;
+    // 定义需要读取的配置文件列表
+    std::vector<std::string> configFiles = {
+        configDir + "config_engine_mainProcess.json",
+        configDir + "config_engine_PreGrid.json",
+        configDir + "config_engine_Solve.json",
+        configDir + "config_engine_Post.json",
+        configDir + "config_registry_module.json"
+    };
+    
+    bool anyFileFound = false;
+    
+    // 读取并合并所有配置文件
+    for (const auto& file : configFiles) {
+        std::ifstream configFile(file);
+        if (configFile.is_open()) {
+            anyFileFound = true;
+            std::cout << "正在加载配置文件: " << file << std::endl;
+            
+            nlohmann::json fileConfig;
+            try {
+                configFile >> fileConfig;
+                
+                // 合并到主配置
+                if (fileConfig.contains("engine")) {
+                    if (!mergedConfig.contains("engine")) {
+                        mergedConfig["engine"] = fileConfig["engine"];
+                    } else {
+                        // 合并engine.enginePool数组
+                        if (fileConfig["engine"].contains("enginePool")) {
+                            for (const auto& engine : fileConfig["engine"]["enginePool"]) {
+                                bool found = false;
+                                for (auto& existingEngine : mergedConfig["engine"]["enginePool"]) {
+                                    if (existingEngine["name"] == engine["name"]) {
+                                        existingEngine = engine;  // 覆盖现有引擎
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if (!found) {
+                                    mergedConfig["engine"]["enginePool"].push_back(engine);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // 合并config部分
+                if (fileConfig.contains("config")) {
+                    if (!mergedConfig.contains("config")) {
+                        mergedConfig["config"] = fileConfig["config"];
+                    } else {
+                        // 合并配置参数
+                        for (auto it = fileConfig["config"].begin(); it != fileConfig["config"].end(); ++it) {
+                            mergedConfig["config"][it.key()] = it.value();
+                        }
+                    }
+                }
+                
+                // 合并registry部分
+                if (fileConfig.contains("registry")) {
+                    mergedConfig["registry"] = fileConfig["registry"];
+                }
+                
+            } catch (const std::exception& e) {
+                std::cerr << "解析文件 " << file << " 失败: " << e.what() << std::endl;
+            }
+            
+            configFile.close();
+        }
+    }
+    
+    // 如果没有找到任何配置文件，生成默认配置
+    if (!anyFileFound) {
+        std::cout << "未找到任何配置文件，将生成默认配置模板" << std::endl;
+        generateTemplateConfigs(configDir);
+        
+        // 生成默认配置后退出
+        std::cout << "请编辑生成的配置模板，然后重新运行程序" << std::endl;
+        exit(0);
+    }
+    
+    // 验证并处理合并后的配置
+    if (!ModuleSystem::paramValidation(mergedConfig)) {
+        std::cerr << "配置验证失败，请检查配置文件" << std::endl;
         exit(1);
     }
     
     // 保存使用的配置
-    ModuleSystem::saveUsedConfig(config, outputFile);
-}
-
-/**
- * @brief Generates configuration information and writes it to a file.
- * @param registry Shared pointer to the AdvancedRegistry.
- * @param engine Unique pointer to the Nestedengine.
- * @param outputFile The path to the output file.
- * @throws std::runtime_error If the file cannot be created.
- */
-void getConfigInfo(std::shared_ptr<ModuleSystem::AdvancedRegistry> registry, 
-                   std::unique_ptr<ModuleSystem::Nestedengine>& engine, 
-                   const std::string& outputFile) {
-    nlohmann::ordered_json configInfo;
-
-    configInfo["config"] = engine->getDefaultConfig();
-    
-    nlohmann::json preprocessingFactory;
-    preprocessingFactory["name"] = "preprocessing_factory";
-    preprocessingFactory["modules"] = nlohmann::json::array();
-    preprocessingFactory["executionType"] = "CHOOSE_ONE";
-    
-    preprocessingFactory["modules"].push_back({
-         {"name", "PreCGNS"},
-         {"enabled", true}});
-
-    preprocessingFactory["modules"].push_back({
-        {"name", "PrePlot3D"},
-        {"enabled", true}});
-    
-    nlohmann::json solverFactory;
-    solverFactory["name"] = "solver_factory";
-    solverFactory["modules"] = nlohmann::json::array();
-    solverFactory["executionType"] = "SEQUENTIAL_EXECUTION";
-    
-    solverFactory["modules"].push_back({
-         {"name", "EulerSolver"},
-         {"enabled", true}});
-    
-    solverFactory["modules"].push_back({
-         {"name", "SASolver"},
-         {"enabled", true}});
-
-    solverFactory["modules"].push_back({
-        {"name", "SSTSolver"},
-        {"enabled", true}});
-    
-     configInfo["engine"] = createengineInfo();
-     configInfo["registry"] = createRegistryInfo();
-     
-     for (const auto& moduleType : ModuleSystem::ModuleTypeRegistry::instance().getModuleTypes()) {
-         nlohmann::json moduleParams = moduleType.getParamSchemaFunc();
-         nlohmann::json moduleDefaults;
-         for (auto& [paramName, paramInfo] : moduleParams.items()) {
-             if (paramInfo.contains("default")) {
-                 moduleDefaults[paramName] = paramInfo["default"];
-             }
-         }
-         configInfo["config"][moduleType.name] = moduleDefaults;
-     }
-     
-     std::ofstream file(outputFile);
-     if (!file.is_open()) {
-         throw std::runtime_error("无法创建配置文件: " + outputFile);
-     }
-     file << std::setw(4) << configInfo << std::endl;
-     file.close();
-     std::cout << "成功写入配置信息到 " << outputFile << std::endl;
-}
-
-/**
- * @brief Saves the used configuration to a file.
- * @param moduleConfig The module configuration JSON object.
- * @param enabledModules Set of enabled module names.
- * @param engine The engine configuration JSON object.
- * @param globalParams The global parameters JSON object.
- * @param outputFile The path to the output file.
- */
-void saveUsedConfig(const nlohmann::json& moduleConfig, 
-                    const std::unordered_set<std::string>& enabledModules, 
-                    const nlohmann::json& engine,
-                    const nlohmann::json& globalParams,
-                    const std::string& outputFile) {
-    nlohmann::ordered_json usedConfig;
-    
-    usedConfig["config"] = nlohmann::ordered_json::object();
-    
-    for (auto it = globalParams.begin(); it != globalParams.end(); ++it) {
-        usedConfig["config"][it.key()] = it.value();
-    }
-    
-    for (auto it = moduleConfig.begin(); it != moduleConfig.end(); ++it) {
-        const std::string& moduleName = it.key();
-        if (enabledModules.count(moduleName) > 0) {
-            usedConfig["config"][moduleName] = it.value();
-        }
-    }
-    
-    usedConfig["engine"] = engine;
-
-    usedConfig["registry"] = {{"modules", nlohmann::ordered_json::array()}};
-    for (const auto& moduleName : enabledModules) {
-        nlohmann::ordered_json moduleInfo = {
-            {"enabled", true},
-            {"name", moduleName}
-        };
-        usedConfig["registry"]["modules"].push_back(moduleInfo);
-    }
-    
-    std::ofstream file(outputFile);
-    if (!file.is_open()) {
-        std::cerr << "无法创建配置文件: " << outputFile << std::endl;
-        return;
-    }
-    file << std::setw(4) << usedConfig << std::endl;
-    file.close();
-    std::cout << "实际使用的配置已保存到: " << outputFile << std::endl;
+    saveUsedConfigs(mergedConfig, configDir);
 }
 
 /**
@@ -1537,40 +1833,6 @@ bool paramValidation(const nlohmann::json& config) {
     storage.initializeEngineContexts();
 
     return true;
-}
-
-/**
- * @brief Saves the used configuration to a file.
- * @param config The configuration JSON object.
- * @param outputFile The path to the output file.
- */
-void saveUsedConfig(const nlohmann::json& config, const std::string& outputFile) {
-    nlohmann::json moduleConfig;
-    nlohmann::json globalParams;
-    
-    if (config.contains("config")) {
-        for (auto& [key, value] : config["config"].items()) {
-            if (value.is_object()) moduleConfig[key] = value;
-            else globalParams[key] = value;
-        }
-    }
-    
-    std::unordered_set<std::string> enabledModulesForSave;
-    if (config["registry"].contains("modules")) {
-        for (const auto& module : config["registry"]["modules"]) {
-            if (module.contains("name") && module.contains("enabled") && module["enabled"].get<bool>()) {
-                enabledModulesForSave.insert(module["name"].get<std::string>());
-            }
-        }
-    } else {
-        std::cerr << "配置错误: 缺少模块注册表" << std::endl;
-        return;
-    }
-    
-    nlohmann::json engineInfo = config["engine"];
-    
-    ModuleSystem::saveUsedConfig(moduleConfig, enabledModulesForSave, 
-                                engineInfo, globalParams, outputFile);
 }
 
 /**
