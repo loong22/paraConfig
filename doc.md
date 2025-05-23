@@ -670,40 +670,57 @@ int main(int argc, char* argv[]) {
 }
 ```
 
+5. **构建系统**：确保新的组件源文件和头文件被正确添加到项目的构建系统 (如 CMakeLists.txt) 中。
+
 ## 示例与最佳实践
 
 ### 典型配置示例
 
-本系统已包含三个主要组件的配置示例：
+本系统已包含主要组件的配置示例模板，当执行 `--generate-templates` 时会生成这些文件：
 
-1. **预处理引擎配置**：`template_engine_PreGrid.json`
-2. **求解器引擎配置**：`template_engine_Solve.json`
-3. **后处理引擎配置**：`template_engine_Post.json`
-4. **主引擎配置**：`template_engine_mainProcess.json`
+1.  **预处理引擎配置**：`template_engine_PreGrid.json`
+2.  **求解器引擎配置**：`template_engine_Solve.json`
+3.  **后处理引擎配置**：`template_engine_Post.json`
+4.  **主引擎配置**：`template_engine_mainProcess.json` (包含全局参数 `GlobalConfig` 和主工作流定义)
+5.  **模块注册表配置**：`template_registry_module.json` (定义系统中所有可识别的模块及其默认启用状态)
 
-这些文件可以作为配置的起点，根据需要进行调整。
+这些文件可以作为配置的起点，根据需要进行调整。实际运行时，程序会从 `--config-dir` (默认为 `./config/`) 加载名为 `config_*.json` 的文件。
 
 ### 最佳实践
 
-1. **模块设计原则**：
-   - 单一职责：每个模块专注于单一功能
-   - 明确接口：遵循系统定义的模块接口
-   - 参数验证：提供完整的参数架构定义
+1.  **模块设计原则**：
+    *   **单一职责**：每个模块应专注于一个特定的功能。
+    *   **清晰接口**：模块应提供明确的构造函数 (接受 `nlohmann::json` 参数)、`initialize()`、`execute()`、`release()` 方法和静态的 `GetParamSchema()` 方法。
+    *   **无状态性**：尽量设计无状态模块，或通过 `initialize()` 和参数传入来管理状态。
+    *   **错误处理**：模块内部应妥善处理异常，并在必要时抛出标准异常。
+    *   **资源管理**：在 `release()` 方法中确保所有分配的资源得到释放。
 
-2. **参数配置**：
-   - 合理默认值：为所有参数提供合理的默认值
-   - 范围约束：为数值参数设置适当的范围
-   - 详细描述：为参数提供清晰的描述信息
+2.  **组件化开发流程**：
+    为了更好地组织和管理模块，推荐采用组件化的开发方式。一个组件通常包含一组功能相关的模块。
+    *   **创建命名空间**：为组件定义一个独立的C++命名空间，例如 `MYCOMPONENT`。
+    *   **定义模块**：在组件的头文件 (`.h`) 中声明模块类，包括其构造函数、生命周期方法和 `GetParamSchema` 方法。同时，特化 `ModuleSystem::ModuleParamTraits`。
+    *   **实现模块与注册逻辑**：
+        *   在组件的源文件 (`.cpp`) 中实现模块的具体逻辑。
+        *   在源文件中，为该组件创建静态的 `ModuleSystem::LocalTypeRegistry` 和 `ModuleSystem::LocalFactory` 实例。
+        *   实现一个内部的 `registerComponentModules()` (或类似名称) 函数，在此函数中：
+            *   使用 `localTypeRegistryInstance.registerType()` 注册模块的名称和获取其参数架构的lambda。
+            *   使用 `localFactoryInstance.registerModuleType()` 注册模块的名称和创建其实例的lambda (该lambda内部调用 `reg->Register<YourModuleType>(name);`)。
+    *   **导出到全局**：
+        *   在组件的头文件中声明一个导出函数，如 `void exportToGlobalRegistry();`。
+        *   在组件的源文件中实现此函数。该函数首先调用内部的 `registerComponentModules()`，然后调用 `localTypeRegistryInstance.exportToGlobal()` 和 `localFactoryInstance.exportToGlobal()`，将本地注册的类型和工厂方法导出到全局单例中。
+        *   可选地，在此函数中使用 `ModuleSystem::ModuleRegistryInitializer::init().assignModuleToEngine("MyModuleName", "DefaultEngineName");` 为模块指定一个默认关联的引擎。
+    *   **主程序集成**：
+        *   在 `main.cpp` (或其他合适的初始化位置) `#include` 组件的头文件。
+        *   在 `main()` 函数的早期阶段，调用组件的 `exportToGlobalRegistry()` 函数。
+    *   **构建系统**：确保新的组件源文件和头文件被正确添加到项目的构建系统 (如 CMakeLists.txt) 中。
 
-3. **配置管理**：
-   - 分离配置：使用不同文件管理不同引擎配置
-   - 模块化配置：相关参数分组在一起
-   - 使用模板：从生成的模板开始定制配置
+3.  **配置管理**：
+    *   **分离配置**：将引擎定义、模块参数和模块注册信息分别存储在不同的JSON文件中，便于管理和维护。
+    *   **版本控制**：将配置文件纳入版本控制系统。
+    *   **模板优先**：先使用 `--generate-templates` 生成最新的配置模板，再进行修改，以确保配置结构与程序版本兼容。
 
-4. **组件开发**：
-   - 命名空间隔离：使用单独的命名空间包装组件
-   - 本地注册：先在组件内注册模块，再导出到全局
-   - 访问控制：明确定义模块与引擎的关联关系
+4.  **参数定义**：
+    *   在模块的 `GetParamSchema()` 方法中，为每个参数提供明确的 `type`、`description`，并尽可能使用 `default`、`enum`、`minimum`、`maximum` 等约束，以利用系统的参数校验功能。
 
 ## 常见问题
 
