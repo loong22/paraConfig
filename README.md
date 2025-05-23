@@ -67,7 +67,7 @@ make
 
 1. 生成配置模板
 ```bash
-./paraConfig --generate-templates ./configs
+./paraConfig --generate-templates ./templates
 ```
    如果未指定目录，则默认生成到 `./templates/`。
 
@@ -81,7 +81,7 @@ make
 
 3. 运行程序
 ```bash
-./paraConfig --config-dir ./configs
+./paraConfig --config-dir ./config
 ```
    如果未指定目录，则默认从 `./config/` 加载。
 
