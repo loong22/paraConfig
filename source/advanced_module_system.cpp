@@ -849,9 +849,6 @@ bool engineExecutionEngine::executeengine(const std::string& engineName, engineC
         }
     }
     
-    // 添加调试输出
-    //std::cout << "引擎上下文初始化完毕，开始执行模块..." << std::endl;
-    
     try {
         // 1. 全局构造阶段
         std::cout << "\n====== 全局构造阶段 ======" << std::endl;
@@ -910,9 +907,6 @@ bool engineExecutionEngine::executeengine(const std::string& engineName, engineC
         return false;
     }
     
-    // 添加调试输出
-    //std::cout << "模块执行完毕，开始传递参数..." << std::endl;
-    
     // 将所有子引擎的参数传回父上下文
     for (const auto& engName : executionOrder) {
         if (engName != engineName) { // 非主引擎
@@ -922,7 +916,6 @@ bool engineExecutionEngine::executeengine(const std::string& engineName, engineC
         }
     }
     
-    std::cout << "执行子引擎: " << engineName << " 完成" << std::endl;
     return true;
 }
 
@@ -1025,9 +1018,6 @@ nlohmann::json createRegistryInfo() {
     }
     return registry;
 }
-
-
-
 
 /**
  * @brief Creates engine information as a JSON object.
@@ -1396,15 +1386,6 @@ void validateModuleParams(const nlohmann::json& moduleParams,
         }
     }
 }
-
-/**
- * @brief Constructor for engineExecutionEngine.
- * @param engines The engine configuration JSON object.
- * @param context Reference to the engine context.
- */
-engineExecutionEngine::engineExecutionEngine(const nlohmann::json& engines, 
-                                             ModuleSystem::engineContext& context)
-    : engines_(engines), context_(context) {}
 
 /**
  * @brief Gets the effective parameters for a module.
@@ -1788,7 +1769,7 @@ bool paramValidation(const nlohmann::json& config) {
         return false;
     }
 
-    // 7. 检查引擎依赖循环 (与之前逻辑类似，此处省略以保持简洁，假设它已正确实现)
+    // 7. 检查引擎依赖循环
     std::function<bool(const std::string&, 
                        std::unordered_set<std::string>&, 
                        std::unordered_set<std::string>&, 

@@ -734,11 +734,10 @@ public:
      * @param engines 引擎配置JSON对象
      * @param context 引擎上下文引用
      */
-    engineExecutionEngine(
-        const nlohmann::json& engines, 
-        ModuleSystem::engineContext& context
-    );
-    
+    engineExecutionEngine(const nlohmann::json& engines, 
+                                             ModuleSystem::engineContext& context)
+    : engines_(engines), context_(context) {}
+
     /**
      * @brief 执行指定引擎
      * @param engineName 引擎名称
