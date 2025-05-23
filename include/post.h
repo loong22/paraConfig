@@ -27,18 +27,12 @@ SOFTWARE.
 
 /**
  * @namespace POST
- * @brief 网格预处理组件模块集合
+ * @brief 后处理组件模块集合
  */
 namespace POST {
-    /// 本地类型注册表指针 - 指向全局单例
-    extern ModuleSystem::ModuleTypeRegistry* localTypeRegistry;
-    
-    /// 本地模块工厂指针 - 指向全局单例
-    extern ModuleSystem::ModuleFactory* localFactory;
-
     /**
      * @brief 注册模块类型
-     * 将所有预处理网格相关的模块注册到本地注册表中
+     * 将所有后处理相关的模块注册到本地注册表中
      */
     void registerTypes();
 
@@ -129,9 +123,9 @@ namespace POST {
          */
         static nlohmann::json GetParamSchema();
         
-        private:
-            std::string plot3d_type_; /**< Plot3D类型 */
-            double plot3d_value_;     /**< Plot3D值 */                                      
+    private:
+        std::string plot3d_type_; /**< Plot3D类型 */
+        double plot3d_value_;    /**< Plot3D值 */
     };
 }
 

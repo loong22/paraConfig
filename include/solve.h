@@ -30,12 +30,6 @@ SOFTWARE.
  * @brief 网格预处理组件模块集合
  */
 namespace SOLVE {
-    /// 本地类型注册表指针 - 指向全局单例
-    extern ModuleSystem::ModuleTypeRegistry* localTypeRegistry;
-    
-    /// 本地模块工厂指针 - 指向全局单例
-    extern ModuleSystem::ModuleFactory* localFactory;
-
     /**
      * @brief 注册模块类型
      * 将所有预处理网格相关的模块注册到本地注册表中
@@ -94,7 +88,7 @@ namespace SOLVE {
         
     private:
         std::string euler_type_; /**< 欧拉类型 */
-        double euler_value__;    /**< 欧拉值 */
+        double euler_value_;    /**< 欧拉值 */
     };
 
     /**

@@ -31,20 +31,6 @@ namespace POST {
 static ModuleSystem::LocalTypeRegistry localTypeRegistryInstance;
 static ModuleSystem::LocalFactory localFactoryInstance;
 
-// 指向这些实例的指针
-ModuleSystem::ModuleTypeRegistry* localTypeRegistry = nullptr;
-ModuleSystem::ModuleFactory* localFactory = nullptr;
-
-// 初始化函数 - 使用单例模式
-void initializeFactory() {
-    if (!localTypeRegistry) {
-        localTypeRegistry = &ModuleSystem::ModuleTypeRegistry::instance();
-    }
-    if (!localFactory) {
-        localFactory = &ModuleSystem::ModuleFactory::instance();
-    }
-}
-
 void registerTypes() {
     // 在本地注册表中注册类型
     localTypeRegistryInstance.registerType("PostCGNS", 
@@ -87,10 +73,7 @@ void exportToGlobalRegistry() {
     // 使用新的导出方法将本地注册表导出到全局
     localTypeRegistryInstance.exportToGlobal();
     localFactoryInstance.exportToGlobal();
-    
-    // 确保我们使用的是全局实例来关联模块和引擎
-    initializeFactory();
-    
+
     // 将模块关联到对应的引擎 - 只关联成功导出的模块
     auto& moduleRegistryInit = ModuleSystem::ModuleRegistryInitializer::init();
     for (const auto& name : postModules) {
