@@ -933,7 +933,7 @@ nlohmann::json createRegistryInfo() {
             {"default", "SIMPLE"}
         }},
         {"maxIterations", {
-            {"type", "integer"},
+            {"type", "number"},
             {"description", "求解过程中的最大迭代次数"},
             {"minimum", 1},
             {"maximum", 1000000},
