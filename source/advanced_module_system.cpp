@@ -1700,6 +1700,9 @@ bool paramValidation(const nlohmann::json& config) {
                 //      return false;
                 // }
                 if (enabledModulesFromConfig.find(moduleNameInEngine) == enabledModulesFromConfig.end()) {
+                    if (moduleNameInEngine == "GlobalConfig") {
+                        continue;
+                    }
                     std::cerr << "错误: 引擎 '" << engineName << "' 引用了模块 '" << moduleNameInEngine << "', 但该模块未在注册表中启用或定义。" << std::endl;
                     return false;
                 }
@@ -1955,7 +1958,7 @@ void test() {
                 };
             }
             
-            void* moduleInstance = engineContext->createModule("PreCGNS", moduleParams);
+            engineContext->createModule("PreCGNS", moduleParams);
             std::cout << " - 创建 PreCGNS 成功" << std::endl;
             
             engineContext->initializeModule("PreCGNS");
@@ -1983,7 +1986,7 @@ void test() {
                 };
             }
             
-            void* moduleInstance = engineContext->createModule("EulerSolver", moduleParams);
+           engineContext->createModule("EulerSolver", moduleParams);
             std::cout << " - 创建 EulerSolver 成功" << std::endl;
             
             engineContext->initializeModule("EulerSolver");
