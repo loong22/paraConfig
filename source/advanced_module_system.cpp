@@ -381,21 +381,6 @@ const auto& Nestedengine::getengines() const {
 }
 
 /**
- * @brief Gets the default configuration for the engine.
- * @return A JSON object representing the default configuration.
- */
-nlohmann::json Nestedengine::getDefaultConfig() const {
-    nlohmann::json defaultConfig;
-    defaultConfig["GlobalConfig"] = {
-        {"solver", "SIMPLE"},
-        {"maxIterations", 1000},
-        {"convergenceCriteria", 1e-6},
-        {"time_step", 0.01}
-    };
-    return defaultConfig;
-}
-
-/**
  * @brief 创建特定引擎的配置信息
  * @param engineName 引擎名称
  * @return 引擎特定的配置JSON对象
@@ -425,9 +410,6 @@ nlohmann::json createEngineSpecificInfo(const std::string& engineName) {
                             simplifiedSubEngine["name"] = subEngine["name"];
                             simplifiedSubEngine["description"] = subEngine["description"];
                             simplifiedSubEngine["enabled"] = subEngine["enabled"];
-                            
-                            // 不添加modules和subenginePool
-                            
                             engineInfo["engine"]["enginePool"].push_back(simplifiedSubEngine);
                             break;
                         }
@@ -448,53 +430,7 @@ nlohmann::json createEngineSpecificInfo(const std::string& engineName) {
             break;
         }
     }
-    
     return engineInfo;
-}
-
-/**
- * @brief Creates a module configuration for the specified engine.
- * @param engineName The name of the engine.
- * @return A JSON object representing the module configuration.
- */
-nlohmann::json createModuleConfigForEngine(const std::string& engineName) {
-    nlohmann::json moduleConfig;
-    moduleConfig["config"] = nlohmann::json::object();
-    
-    // 添加全局配置参数
-    if (engineName == "mainProcess") {
-        // 修复：使用临时对象直接调用函数，而不是尝试绑定到引用
-        auto defaultConfig = ModuleSystem::Nestedengine(*(new ModuleSystem::AdvancedRegistry())).getDefaultConfig();
-        moduleConfig["config"] = defaultConfig;
-    }
-    
-    // 确定引擎包含的所有模块（不管是否启用）
-    std::unordered_set<std::string> engineModules;
-    
-    // 从引擎配置中获取模块列表
-    auto engineInfo = createEngineSpecificInfo(engineName);
-    for (const auto& engine : engineInfo["engine"]["enginePool"]) {
-        if (engine.contains("modules")) {
-            for (const auto& module : engine["modules"]) {
-                // 不再检查模块是否启用，只要存在就添加到模块列表中
-                engineModules.insert(module["name"]);
-            }
-        }
-    }
-    
-    // 为这些模块添加配置
-    auto fullRegistry = createRegistryInfo();
-    for (const auto& module : fullRegistry["modules"]) {
-        std::string moduleName = module["name"];
-        if (engineModules.find(moduleName) != engineModules.end()) {
-            // 收集模块的所有参数
-            for (const auto& param : module["parameters"].items()) {
-                moduleConfig["config"][moduleName][param.key()] = param.value()["default"];
-            }
-        }
-    }
-    
-    return moduleConfig;
 }
 
 /**
@@ -528,8 +464,7 @@ void generateTemplateConfigs(const std::string& baseDir) {
             }
         }
     } else {
-        // Fallback or error if GlobalConfig schema not found
-         mainConfig["config"]["GlobalConfig"] = {
+        mainConfig["config"]["GlobalConfig"] = {
             {"solver", "SIMPLE"},
             {"maxIterations", 1000},
             {"convergenceCriteria", 1e-6},
@@ -540,14 +475,32 @@ void generateTemplateConfigs(const std::string& baseDir) {
     
     mainConfig["engine"] = nlohmann::json::object();
     mainConfig["engine"]["enginePool"] = nlohmann::json::array();
-    
+ 
     auto fullEngineInfo = createengineInfo(); // 假设这个函数返回所有引擎的定义
     for (const auto& engine : fullEngineInfo["enginePool"]) {
         if (engine["name"] == "mainProcess") {
-            mainConfig["engine"]["enginePool"].push_back(engine);
+            // 创建 engine 的副本，这样我们可以修改它
+            nlohmann::json engineCopy = engine;
+            
+            // 确保 modules 数组存在
+            if (!engineCopy.contains("modules") || !engineCopy["modules"].is_array()) {
+                engineCopy["modules"] = nlohmann::json::array();
+            }
+            
+            // 将 GlobalConfig 添加为模块
+            nlohmann::json globalConfigModule;
+            globalConfigModule["name"] = "GlobalConfig";
+            globalConfigModule["enabled"] = true;
+            
+            // 将 GlobalConfig 模块添加到引擎的模块列表中
+            engineCopy["modules"].push_back(globalConfigModule);
+            
+            // 将修改后的引擎定义添加到配置中
+            mainConfig["engine"]["enginePool"].push_back(engineCopy);
+            
             // 为 mainProcess 模板添加其直接模块的默认配置（如果需要）
-            if (engine.contains("modules")) {
-                for (const auto& modInfo : engine["modules"]) {
+            if (engineCopy.contains("modules")) {
+                for (const auto& modInfo : engineCopy["modules"]) {
                     std::string moduleName = modInfo["name"].get<std::string>();
                     for (const auto& regModule : fullRegistryInfo["modules"]) {
                         if (regModule["name"] == moduleName && regModule.contains("parameters")) {
@@ -565,6 +518,7 @@ void generateTemplateConfigs(const std::string& baseDir) {
             break;
         }
     }
+    
     
     std::filesystem::path mainFilePath = dirPath / "template_engine_mainProcess.json";
     std::ofstream mainFile(mainFilePath);
@@ -986,7 +940,7 @@ nlohmann::json createRegistryInfo() {
             {"default", "SIMPLE"}
         }},
         {"maxIterations", {
-            {"type", "integer"},
+            {"type", "number"},
             {"description", "求解过程中的最大迭代次数"},
             {"minimum", 1},
             {"maximum", 1000000},
@@ -1749,11 +1703,14 @@ bool paramValidation(const nlohmann::json& config) {
             for (const auto& moduleInfo : engineDef["modules"]) {
                  if (!moduleInfo.value("enabled", false)) continue; // 只检查引擎中启用的模块实例
                 std::string moduleNameInEngine = moduleInfo["name"].get<std::string>();
-                if (moduleNameInEngine == "GlobalConfig") { // GlobalConfig 不应作为普通模块列在引擎中
-                     std::cerr << "配置错误: GlobalConfig不应作为模块列在引擎 '" << engineName << "' 中。" << std::endl;
-                     return false;
-                }
+                // if (moduleNameInEngine == "GlobalConfig") { // GlobalConfig 不应作为普通模块列在引擎中
+                //      std::cerr << "配置错误: GlobalConfig不应作为模块列在引擎 '" << engineName << "' 中。" << std::endl;
+                //      return false;
+                // }
                 if (enabledModulesFromConfig.find(moduleNameInEngine) == enabledModulesFromConfig.end()) {
+                    if (moduleNameInEngine == "GlobalConfig") {
+                        continue;
+                    }
                     std::cerr << "错误: 引擎 '" << engineName << "' 引用了模块 '" << moduleNameInEngine << "', 但该模块未在注册表中启用或定义。" << std::endl;
                     return false;
                 }
