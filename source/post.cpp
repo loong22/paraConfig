@@ -68,7 +68,8 @@ void exportToGlobalRegistry() {
     std::cout << "导出后处理模块到全局注册表..." << std::endl;
 #endif
     // 获取本组件特有的模块名称
-    std::unordered_set<std::string> postModules = {"PostCGNS", "PostPlot3D"};
+    //std::unordered_set<std::string> postModules = {"PostCGNS", "PostPlot3D"};
+    std::unordered_set<std::string> postModules = {"PostCGNS"};
     
     // 使用新的导出方法将本地注册表导出到全局
     localTypeRegistryInstance.exportToGlobal();

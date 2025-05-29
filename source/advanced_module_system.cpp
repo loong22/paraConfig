@@ -32,7 +32,6 @@ SOFTWARE.
 #include <filesystem>
 #include <stdexcept>
 #include <algorithm>
-#include <cxxabi.h>
 
 namespace ModuleSystem {
 
@@ -45,6 +44,14 @@ enum class ModuleAction {
     EXECUTE,   /**< Execute a module */
     RELEASE,   /**< Release a module */
     UNKNOWN    /**< Unknown action */
+};
+
+// 定义测试操作常量数组
+const std::array<std::string, 4> LIFECYCLE_ACTIONS = {
+    "create",      // 对应 LifecycleStage::CONSTRUCTED
+    "initialize",  // 对应 LifecycleStage::INITIALIZED
+    "execute",     // 对应 LifecycleStage::EXECUTED
+    "release"      // 对应 LifecycleStage::RELEASED
 };
 
 /**
@@ -1027,61 +1034,62 @@ nlohmann::json createengineInfo() {
     nlohmann::json engineInfo;
     engineInfo["enginePool"] = nlohmann::json::array();
     
-    nlohmann::json preGridEngine;
-    preGridEngine["name"] = "PreGrid";
-    preGridEngine["description"] = "网格预处理引擎";
-    preGridEngine["enabled"] = true;
-    preGridEngine["modules"] = nlohmann::json::array();
-    preGridEngine["modules"].push_back({
-        {"name", "PreCGNS"},
-        {"enabled", true}
-    });
-    preGridEngine["modules"].push_back({
-        {"name", "PrePlot3D"},
-        {"enabled", false}
-    });
+    // 获取所有已注册的模块
+    auto& moduleRegistry = ModuleTypeRegistry::instance();
+    auto& engineMapping = EngineModuleMapping::instance();
     
-    nlohmann::json solveEngine;
-    solveEngine["name"] = "Solve";
-    solveEngine["description"] = "求解引擎";
-    solveEngine["enabled"] = true;
-    solveEngine["modules"] = nlohmann::json::array();
-    solveEngine["modules"].push_back({
-        {"name", "EulerSolver"},
-        {"enabled", true}
-    });
-    solveEngine["modules"].push_back({
-        {"name", "SASolver"},
-        {"enabled", true}
-    });
-    solveEngine["modules"].push_back({
-        {"name", "SSTSolver"},
-        {"enabled", false}
-    });
+    // 创建模块映射表: 引擎名称 -> 模块列表
+    std::unordered_map<std::string, std::vector<std::string>> engineToModules;
     
-    nlohmann::json postEngine;
-    postEngine["name"] = "Post";
-    postEngine["description"] = "后处理引擎";
-    postEngine["enabled"] = true;
-    postEngine["modules"] = nlohmann::json::array();
-    postEngine["modules"].push_back({
-        {"name", "PostCGNS"},
-        {"enabled", true}
-    });
-    postEngine["modules"].push_back({
-        {"name", "PostPlot3D"},
-        {"enabled", true}
-    });
+    // 从模块映射中收集所有引擎的模块
+    for (const auto& moduleType : moduleRegistry.getModuleTypes()) {
+        std::string moduleName = moduleType.name;
+        std::string engineName = engineMapping.getModuleEngine(moduleName);
+        
+        // 如果模块未绑定到引擎，跳过
+        if (engineName.empty()) {
+            continue;
+        }
+        
+        // 将模块添加到对应引擎的列表中
+        engineToModules[engineName].push_back(moduleName);
+    }
     
+    // 定义基本的引擎结构
+    std::vector<std::pair<std::string, std::string>> engineDefinitions = {
+        {"PreGrid", "网格预处理引擎"},
+        {"Solve", "求解引擎"},
+        {"Post", "后处理引擎"}
+    };
+    
+    // 创建引擎定义
+    for (const auto& [engName, engDesc] : engineDefinitions) {
+        nlohmann::json engine;
+        engine["name"] = engName;
+        engine["description"] = engDesc;
+        engine["enabled"] = true;
+        engine["modules"] = nlohmann::json::array();
+        
+        // 添加此引擎的所有模块
+        if (engineToModules.find(engName) != engineToModules.end()) {
+            for (const auto& modName : engineToModules[engName]) {
+                engine["modules"].push_back({
+                    {"name", modName},
+                    {"enabled", true}
+                });
+            }
+        }
+        
+        engineInfo["enginePool"].push_back(engine);
+    }
+    
+    // 添加主引擎
     nlohmann::json mainEngine;
     mainEngine["name"] = "mainProcess";
     mainEngine["description"] = "总控制引擎";
     mainEngine["enabled"] = true;
     mainEngine["subenginePool"] = {"PreGrid", "Solve", "Post"};
     
-    engineInfo["enginePool"].push_back(preGridEngine);
-    engineInfo["enginePool"].push_back(solveEngine);
-    engineInfo["enginePool"].push_back(postEngine);
     engineInfo["enginePool"].push_back(mainEngine);
     
     return engineInfo;
@@ -1974,88 +1982,158 @@ void run() {
 /**
  * @brief Tests the module system by manually executing selected modules.
  */
-void test() {
+void test(const std::string& engineName, const std::string& action) {
     auto& storage = ConfigurationStorage::instance();
     
     if (!storage.registry || !storage.engine || !storage.mainContext || !storage.enginesAreDefined) {
-        std::cerr << "错误: 测试前请先运行 paramValidation 函数" << std::endl;
+        std::cerr << "错误: 模块系统未正确初始化，无法执行测试" << std::endl;
         return;
     }
     
-    std::cout << "\n======== 开始模块手动测试 ========\n" << std::endl;
+    std::cout << "\n======== 开始模块测试 ========\n" << std::endl;
     
     try {
-        if (storage.enabledModules.find("PreCGNS") != storage.enabledModules.end()) {
-            std::cout << "测试 PreCGNS 模块..." << std::endl;
-
-            // 使用 PreGrid 引擎的上下文
-            auto& engineContext = storage.engineContexts["PreGrid"];
-
-            nlohmann::json moduleParams;
-            if (storage.moduleConfig.contains("PreCGNS")) {
-                moduleParams = storage.moduleConfig["PreCGNS"];
-            } else {
-                moduleParams = {
-                    {"cgns_type", "HDF5"},
-                    {"cgns_value", 20}
-                };
+        // 如果指定了引擎名称和操作
+        if (!engineName.empty() && !action.empty()) {
+            if (storage.engineContexts.find(engineName) == storage.engineContexts.end()) {
+                std::cerr << "错误: 未找到指定的引擎 '" << engineName << "'" << std::endl;
+                return;
             }
             
-            void* moduleInstance = engineContext->createModule("PreCGNS", moduleParams);
-            std::cout << " - 创建 PreCGNS 成功" << std::endl;
-            
-            engineContext->initializeModule("PreCGNS");
-            std::cout << " - 初始化 PreCGNS 成功" << std::endl;
-            
-            engineContext->executeModule("PreCGNS");
-            std::cout << " - 执行 PreCGNS 成功" << std::endl;
-            
-            engineContext->releaseModule("PreCGNS");
-            std::cout << " - 释放 PreCGNS 成功" << std::endl;
-        }
-        
-        if (storage.enabledModules.find("EulerSolver") != storage.enabledModules.end()) {
-            std::cout << "\n测试 EulerSolver 模块..." << std::endl;
-            
-            auto& engineContext = storage.engineContexts["Solve"];
-
-            nlohmann::json moduleParams;
-            if (storage.moduleConfig.contains("EulerSolver")) {
-                moduleParams = storage.moduleConfig["EulerSolver"];
-            } else {
-                moduleParams = {
-                    {"euler_type", "Standard"},
-                    {"euler_value", 0.7}
-                };
+            // 将操作字符串转换为模块操作
+            ModuleAction moduleAction = stringToModuleAction(action);
+            if (moduleAction == ModuleAction::UNKNOWN) {
+                std::cerr << "错误: 无效的操作 '" << action << "', 有效操作: ";
+                for (const auto& validAction : LIFECYCLE_ACTIONS) {
+                    std::cerr << validAction << " ";
+                }
+                std::cerr << std::endl;
+                return;
             }
             
-            void* moduleInstance = engineContext->createModule("EulerSolver", moduleParams);
-            std::cout << " - 创建 EulerSolver 成功" << std::endl;
+            std::cout << "对引擎 '" << engineName << "' 执行操作: " << action << std::endl;
             
-            engineContext->initializeModule("EulerSolver");
-            std::cout << " - 初始化 EulerSolver 成功" << std::endl;
+            // 获取引擎上下文
+            auto& engineContext = storage.engineContexts[engineName];
             
-            engineContext->executeModule("EulerSolver");
-            std::cout << " - 执行 EulerSolver 成功" << std::endl;
+            // 对于子引擎的递归执行
+            std::function<void(const std::string&, ModuleAction)> executeEngineAction =
+                [&](const std::string& engName, ModuleAction act) {
+                    std::cout << "- 处理引擎: " << engName << std::endl;
+                    
+                    // 获取引擎定义
+                    const nlohmann::json* engineDef = nullptr;
+                    for (const auto& eng : storage.config["engine"]["enginePool"]) {
+                        if (eng["name"] == engName) {
+                            engineDef = &eng;
+                            break;
+                        }
+                    }
+                    
+                    if (!engineDef) {
+                        std::cerr << "  错误: 未找到引擎定义 '" << engName << "'" << std::endl;
+                        return;
+                    }
+                    
+                    // 获取此引擎的上下文
+                    auto& context = storage.engineContexts[engName];
+                    
+                    // 首先处理当前引擎的模块
+                    if ((*engineDef).contains("modules") && (*engineDef)["modules"].is_array()) {
+                        for (const auto& moduleInfo : (*engineDef)["modules"]) {
+                            if (moduleInfo.contains("name") && moduleInfo.contains("enabled") && 
+                                moduleInfo["enabled"].get<bool>()) {
+                                std::string moduleName = moduleInfo["name"];
+                                
+                                // 获取模块的有效参数
+                                nlohmann::json moduleParams = getEffectiveModuleParams(
+                                    storage.moduleConfig, 
+                                    moduleName, 
+                                    storage.config["config"].contains(moduleName) ? 
+                                        storage.config["config"][moduleName] : nlohmann::json()
+                                );
+                                
+                                // 执行请求的操作
+                                std::cout << "  - 模块: " << moduleName;
+                                switch (act) {
+                                    case ModuleAction::CREATE:
+                                        std::cout << " - 创建" << std::endl;
+                                        context->createModule(moduleName, moduleParams);
+                                        break;
+                                    case ModuleAction::INITIALIZE:
+                                        std::cout << " - 初始化" << std::endl;
+                                        context->initializeModule(moduleName);
+                                        break;
+                                    case ModuleAction::EXECUTE:
+                                        std::cout << " - 执行" << std::endl;
+                                        context->executeModule(moduleName);
+                                        break;
+                                    case ModuleAction::RELEASE:
+                                        std::cout << " - 释放" << std::endl;
+                                        context->releaseModule(moduleName);
+                                        break;
+                                    default:
+                                        std::cerr << " - 未知操作" << std::endl;
+                                        break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 然后处理子引擎
+                    if ((*engineDef).contains("subenginePool") && (*engineDef)["subenginePool"].is_array()) {
+                        for (const auto& subEngineName : (*engineDef)["subenginePool"]) {
+                            executeEngineAction(subEngineName, act);
+                        }
+                    }
+                };
             
-            engineContext->releaseModule("EulerSolver");
-            std::cout << " - 释放 EulerSolver 成功" << std::endl;
+            // 执行指定的操作
+            executeEngineAction(engineName, moduleAction);
+            
+        } else {
+            // 原有测试逻辑保留（如果未指定具体引擎和操作）
+            std::cout << "执行完整测试流程..." << std::endl;
+            
+            // 创建一些测试模块
+            for (const auto& moduleName : {"PreCGNS", "EulerSolver", "PostCGNS"}) {
+                nlohmann::json moduleParams = getEffectiveModuleParams(
+                    storage.moduleConfig, 
+                    moduleName, 
+                    storage.config["config"].contains(moduleName) ? 
+                        storage.config["config"][moduleName] : nlohmann::json()
+                );
+                
+                std::cout << "创建模块: " << moduleName << std::endl;
+                void* module = storage.mainContext->createModule(moduleName, moduleParams);
+                
+                std::cout << "初始化模块: " << moduleName << std::endl;
+                storage.mainContext->initializeModule(moduleName);
+                
+                std::cout << "执行模块: " << moduleName << std::endl;
+                storage.mainContext->executeModule(moduleName);
+                
+                std::cout << "释放模块: " << moduleName << std::endl;
+                storage.mainContext->releaseModule(moduleName);
+            }
         }
-        
     } catch (const std::exception& e) {
         std::cerr << "测试过程中发生错误: " << e.what() << std::endl;
     }
     
-    std::cout << "\n======== 模块手动测试结束 ========\n" << std::endl;
+    std::cout << "\n======== 模块测试结束 ========\n" << std::endl;
     
-    auto leakedModules = storage.registry->checkLeakedModules();
-    if (!leakedModules.empty()) {
-        std::cerr << "测试后发现未释放的模块:" << std::endl;
-        for (const auto& module : leakedModules) {
-            std::cerr << "  - " << module << std::endl;
+    // 只在 release 操作或无操作参数时检测模块泄漏
+    if (action == "release" || action.empty()) {
+        auto leakedModules = storage.registry->checkLeakedModules();
+        if (!leakedModules.empty()) {
+            std::cerr << "警告: 检测到未释放的模块:" << std::endl;
+            for (const auto& leakInfo : leakedModules) {
+                std::cerr << "  " << leakInfo << std::endl;
+            }
+        } else {
+            std::cout << "未检测到模块泄漏。" << std::endl;
         }
-    } else {
-        std::cout << "测试完成，没有模块泄漏" << std::endl;
     }
 }
 
@@ -2067,47 +2145,9 @@ ModuleRegistryInitializer::ModuleRegistryInitializer() {
     //     "PreCGNS", 
     //     []() -> nlohmann::json { return PreCGNS::GetParamSchema(); }
     // );
-    
-    // ModuleTypeRegistry::instance().registerType(
-    //     "PrePlot3D", 
-    //     []() -> nlohmann::json { return PrePlot3D::GetParamSchema(); }
-    // );
-    
-    // ModuleTypeRegistry::instance().registerType(
-    //     "EulerSolver", 
-    //     []() -> nlohmann::json { return EulerSolver::GetParamSchema(); }
-    // );
-
-    // ModuleTypeRegistry::instance().registerType(
-    //     "SASolver", 
-    //     []() -> nlohmann::json { return SASolver::GetParamSchema(); }
-    // );
-
-    // ModuleTypeRegistry::instance().registerType(
-    //     "SSTSolver", 
-    //     []() -> nlohmann::json { return SSTSolver::GetParamSchema(); }
-    // );
-
-    // ModuleTypeRegistry::instance().registerType(
-    //     "PostCGNS", 
-    //     []() -> nlohmann::json { return PostCGNS::GetParamSchema(); }
-    // );
-
-    // ModuleTypeRegistry::instance().registerType(
-    //     "PostPlot3D", 
-    //     []() -> nlohmann::json { return PostPlot3D::GetParamSchema(); }
-    // );
 
     // 将模块关联到对应的引擎
     //assignModuleToEngine("PreCGNS", "PreGrid");
-    //assignModuleToEngine("PrePlot3D", "PreGrid");
-    
-    // assignModuleToEngine("EulerSolver", "Solve");
-    // assignModuleToEngine("SASolver", "Solve");
-    // assignModuleToEngine("SSTSolver", "Solve");
-    
-    // assignModuleToEngine("PostCGNS", "Post");
-    // assignModuleToEngine("PostPlot3D", "Post");
 }
 
 /**
@@ -2121,42 +2161,7 @@ void ModuleFactoryInitializer::init() {
     //         reg->Register<PreCGNS>(name);
     //         return true;
     //     });
-    
-    // factory.registerModuleType("PrePlot3D", 
-    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-    //         reg->Register<PrePlot3D>(name);
-    //         return true;
-    //     });
-    
-    // factory.registerModuleType("EulerSolver", 
-    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-    //         reg->Register<EulerSolver>(name);
-    //         return true;
-    //     });
-    
-    // factory.registerModuleType("SASolver", 
-    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-    //         reg->Register<SASolver>(name);
-    //         return true;
-    //     });
 
-    // factory.registerModuleType("SSTSolver", 
-    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-    //         reg->Register<SSTSolver>(name);
-    //         return true;
-    //     });
-
-    // factory.registerModuleType("PostCGNS", 
-    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-    //         reg->Register<PostCGNS>(name);
-    //         return true;
-    //     });
-
-    // factory.registerModuleType("PostPlot3D", 
-    //     [](AdvancedRegistry* reg, const std::string& name) -> bool { 
-    //         reg->Register<PostPlot3D>(name);
-    //         return true;
-    //     });
 }
 
 /**

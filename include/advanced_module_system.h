@@ -54,6 +54,11 @@ class AdvancedRegistry;
 class engineContext;
 class Nestedengine;
 
+// 更新测试函数声明
+void test(const std::string& engineName, const std::string& action);
+
+// 添加常量数组声明
+extern const std::array<std::string, 4> LIFECYCLE_ACTIONS;
 
 /**
  * @brief 模块参数特性模板（前向声明）
@@ -896,11 +901,6 @@ void run();
  * @return 验证是否通过
  */
 bool paramValidation(const nlohmann::json& config);
-
-/**
- * @brief 测试模块系统
- */
-void test();
 
 /**
  * @brief 本地类型注册表类

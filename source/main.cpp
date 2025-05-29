@@ -62,10 +62,19 @@ int main(int argc, char* argv[]) {
     ModuleSystem::getConfig(argc, argv);
     
     // 验证通过后执行配置
-    ModuleSystem::run();
+    //ModuleSystem::run();
     
-    //test
-    ModuleSystem::test();
+    // 测试特定引擎的特定操作
+    ModuleSystem::test("PreGrid", "create");
+    ModuleSystem::test("PreGrid", "initialize");
+    ModuleSystem::test("PreGrid", "execute");
+    ModuleSystem::test("PreGrid", "release");
+
+    // 测试主引擎的操作，这将包括其所有子引擎
+    ModuleSystem::test("mainProcess", "create");
+    ModuleSystem::test("mainProcess", "initialize");
+    ModuleSystem::test("mainProcess", "execute");
+    ModuleSystem::test("mainProcess", "release");
 
     return 0;
 }
