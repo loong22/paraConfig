@@ -413,8 +413,11 @@ protected:
         std::unique_ptr<ModuleSST>,
         std::unique_ptr<ModuleSSTWDF>
     >> active_modules_;
-    // It seems module_key_map_ is missing here, but the constructor uses if/else if.
-    // If more modules are added, a map similar to EnginePreGrid might be beneficial.
+    const std::map<std::string, int> module_key_map_ = {
+        {"ModuleSA", 0},
+        {"ModuleSST", 1},
+        {"ModuleSSTWDF", 2}
+    };
 };
 
 /**
@@ -448,12 +451,16 @@ protected:
         std::unique_ptr<ModulePostPlot3D>,
         std::unique_ptr<ModulePostTecplot>
     >> active_modules_;
-    // Similar to EngineTurbulence, a module_key_map_ could be used if module types grow.
+    const std::map<std::string, int> module_key_map_ = {
+        {"ModulePostCGNS", 0},
+        {"ModulePostPlot3D", 1},
+        {"ModulePostTecplot", 2}
+    };
 };
 
 /**
- * @brief Top-level engine for the pre-processing stage.
- * Manages sub-engines related to pre-processing.
+ * @brief Engine for pre-processing stage.
+ * Manages and executes preprocessing sub-engines.
  */
 class EnginePre {
 public:
@@ -476,13 +483,19 @@ public:
      */
     static nlohmann::json GetParamSchema();
 protected:
-    std::map<std::string, std::variant<std::unique_ptr<EnginePreGrid>>> active_sub_engines_;
     std::vector<std::string> execution_order_;
+    std::map<std::string, std::variant<
+        std::unique_ptr<EnginePreGrid>
+    >> active_sub_engines_;
+
+    const std::map<std::string, int> engine_key_map_ = {
+        {"EnginePreGrid", 0}
+    };
 };
 
 /**
- * @brief Top-level engine for the solving stage.
- * Manages sub-engines related to solving (e.g., turbulence).
+ * @brief Engine for solving stage.
+ * Manages and executes solver sub-engines.
  */
 class EngineSolve {
 public:
@@ -505,13 +518,19 @@ public:
      */
     static nlohmann::json GetParamSchema();
 protected:
-    std::map<std::string, std::variant<std::unique_ptr<EngineTurbulence>>> active_sub_engines_;
     std::vector<std::string> execution_order_;
+    std::map<std::string, std::variant<
+        std::unique_ptr<EngineTurbulence>
+    >> active_sub_engines_;
+
+    const std::map<std::string, int> engine_key_map_ = {
+        {"EngineTurbulence", 0}
+    };
 };
 
 /**
- * @brief Top-level engine for the post-processing stage.
- * Manages sub-engines related to post-processing.
+ * @brief Engine for post-processing stage.
+ * Manages and executes post-processing sub-engines.
  */
 class EnginePost {
 public:
@@ -534,8 +553,14 @@ public:
      */
     static nlohmann::json GetParamSchema();
 protected:
-    std::map<std::string, std::variant<std::unique_ptr<EngineFlowField>>> active_sub_engines_;
     std::vector<std::string> execution_order_;
+    std::map<std::string, std::variant<
+        std::unique_ptr<EngineFlowField>
+    >> active_sub_engines_;
+
+    const std::map<std::string, int> engine_key_map_ = {
+        {"EngineFlowField", 0}
+    };
 };
 
 /**

@@ -143,23 +143,32 @@ void WriteDefaultConfigs(const std::string& dir_path) {
 }
 
 void LoadGlobalConfig(const std::filesystem::path& file_path, nlohmann::json& global_config) {
-    if (!std::filesystem::exists(file_path)) {
-        throw std::runtime_error("Config file not found: " + file_path.string());
-    }
+    std::filesystem::path config_path = file_path;
+    
     if (std::filesystem::is_directory(file_path)) {
-        throw std::runtime_error("Config path is a directory, but a file was expected: " + file_path.string());
+        config_path = file_path / "config.json";
+        std::cout << "Directory provided, looking for config.json: " << config_path.string() << std::endl;
+    }
+    
+    if (!std::filesystem::exists(config_path)) {
+        throw std::runtime_error("Config file not found: " + config_path.string());
+    }
+    
+    if (std::filesystem::is_directory(config_path)) {
+        throw std::runtime_error("Config path is a directory, but a file was expected: " + config_path.string());
     }
 
-    std::ifstream ifs(file_path);
+    std::ifstream ifs(config_path);
     if (!ifs.is_open()) {
-        throw std::runtime_error("Cannot open config file: " + file_path.string());
+        throw std::runtime_error("Cannot open config file: " + config_path.string());
     }
     
     try {
         ifs >> global_config;
     } catch (const nlohmann::json::parse_error& e) {
-        throw std::runtime_error("JSON parse error in " + file_path.string() + ": " + e.what());
+        throw std::runtime_error("JSON parse error in " + config_path.string() + ": " + e.what());
     }
+
     // ifs.close(); // RAII handles closing
 }
 
@@ -533,14 +542,23 @@ EngineTurbulence::EngineTurbulence(const nlohmann::json& instance_params, const 
         
         std::string base_module_name = GetBaseName(module_instance_name);
 
-        if (base_module_name == "ModuleSA") {
-            active_modules_[module_instance_name] = std::make_unique<ModuleSA>(current_module_params);
-        } else if (base_module_name == "ModuleSST") {
-            active_modules_[module_instance_name] = std::make_unique<ModuleSST>(current_module_params);
-        } else if (base_module_name == "ModuleSSTWDF") {
-            active_modules_[module_instance_name] = std::make_unique<ModuleSSTWDF>(current_module_params);
-        } else {
+        auto it_map = module_key_map_.find(base_module_name);
+        if (it_map == module_key_map_.end()) {
             throw std::runtime_error("EngineTurbulence: Unknown base module key: " + base_module_name + " (from instance " + module_instance_name + ")");
+        }
+
+        switch (it_map->second) {
+            case 0: // ModuleSA
+                active_modules_[module_instance_name] = std::make_unique<ModuleSA>(current_module_params);
+                break;
+            case 1: // ModuleSST
+                active_modules_[module_instance_name] = std::make_unique<ModuleSST>(current_module_params);
+                break;
+            case 2: // ModuleSSTWDF
+                active_modules_[module_instance_name] = std::make_unique<ModuleSSTWDF>(current_module_params);
+                break;
+            default: 
+                throw std::runtime_error("EngineTurbulence: Unknown module key in execution order: " + module_instance_name);
         }
     }
 }
@@ -620,14 +638,23 @@ EngineFlowField::EngineFlowField(const nlohmann::json& instance_params, const nl
         
         std::string base_module_name = GetBaseName(module_instance_name);
 
-        if (base_module_name == "ModulePostCGNS") {
-            active_modules_[module_instance_name] = std::make_unique<ModulePostCGNS>(current_module_params);
-        } else if (base_module_name == "ModulePostPlot3D") {
-            active_modules_[module_instance_name] = std::make_unique<ModulePostPlot3D>(current_module_params);
-        } else if (base_module_name == "ModulePostTecplot") {
-            active_modules_[module_instance_name] = std::make_unique<ModulePostTecplot>(current_module_params);
-        } else {
+        auto it_map = module_key_map_.find(base_module_name);
+        if (it_map == module_key_map_.end()) {
             throw std::runtime_error("EngineFlowField: Unknown base module key: " + base_module_name + " (from instance " + module_instance_name + ")");
+        }
+
+        switch (it_map->second) {
+            case 0: // ModulePostCGNS
+                active_modules_[module_instance_name] = std::make_unique<ModulePostCGNS>(current_module_params);
+                break;
+            case 1: // ModulePostPlot3D
+                active_modules_[module_instance_name] = std::make_unique<ModulePostPlot3D>(current_module_params);
+                break;
+            case 2: // ModulePostTecplot
+                active_modules_[module_instance_name] = std::make_unique<ModulePostTecplot>(current_module_params);
+                break;
+            default: 
+                throw std::runtime_error("EngineFlowField: Unknown module key in execution order: " + module_instance_name);
         }
     }
 }
@@ -694,10 +721,18 @@ EnginePre::EnginePre(const nlohmann::json& instance_params, const nlohmann::json
             throw std::runtime_error("EnginePre: Config for sub-engine instance '" + sub_engine_instance_name + "' not found in global_config.");
         }
         std::string base_sub_engine_name = GetBaseName(sub_engine_instance_name);
-        if (base_sub_engine_name == "EnginePreGrid") {
-            active_sub_engines_[sub_engine_instance_name] = std::make_unique<EnginePreGrid>(global_config.at(sub_engine_instance_name), global_config);
-        } else {
-            throw std::runtime_error("EnginePre: Unknown sub-engine base name: " + base_sub_engine_name + " (from instance " + sub_engine_instance_name + ")");
+
+        auto it_map = engine_key_map_.find(base_sub_engine_name);
+        if (it_map == engine_key_map_.end()) {
+            throw std::runtime_error("EnginePre: Unknown base sub-engine key: " + base_sub_engine_name + " (from instance " + sub_engine_instance_name + ")");
+        }
+
+        switch (it_map->second) {
+            case 0: // EnginePreGrid
+                active_sub_engines_[sub_engine_instance_name] = std::make_unique<EnginePreGrid>(global_config.at(sub_engine_instance_name), global_config);
+                break;
+            default:
+                throw std::runtime_error("EnginePre: Unknown sub-engine key in execution order: " + sub_engine_instance_name);
         }
     }
 }
@@ -759,10 +794,18 @@ EngineSolve::EngineSolve(const nlohmann::json& instance_params, const nlohmann::
             throw std::runtime_error("EngineSolve: Config for sub-engine instance '" + sub_engine_instance_name + "' not found in global_config.");
         }
         std::string base_sub_engine_name = GetBaseName(sub_engine_instance_name);
-        if (base_sub_engine_name == "EngineTurbulence") {
-            active_sub_engines_[sub_engine_instance_name] = std::make_unique<EngineTurbulence>(global_config.at(sub_engine_instance_name), global_config);
-        } else {
-            throw std::runtime_error("EngineSolve: Unknown sub-engine base name: " + base_sub_engine_name + " (from instance " + sub_engine_instance_name + ")");
+
+        auto it_map = engine_key_map_.find(base_sub_engine_name);
+        if (it_map == engine_key_map_.end()) {
+            throw std::runtime_error("EngineSolve: Unknown base sub-engine key: " + base_sub_engine_name + " (from instance " + sub_engine_instance_name + ")");
+        }
+
+        switch (it_map->second) {
+            case 0: // EngineTurbulence
+                active_sub_engines_[sub_engine_instance_name] = std::make_unique<EngineTurbulence>(global_config.at(sub_engine_instance_name), global_config);
+                break;
+            default:
+                throw std::runtime_error("EngineSolve: Unknown sub-engine key in execution order: " + sub_engine_instance_name);
         }
     }
 }
@@ -824,10 +867,18 @@ EnginePost::EnginePost(const nlohmann::json& instance_params, const nlohmann::js
             throw std::runtime_error("EnginePost: Config for sub-engine instance '" + sub_engine_instance_name + "' not found in global_config.");
         }
         std::string base_sub_engine_name = GetBaseName(sub_engine_instance_name);
-        if (base_sub_engine_name == "EngineFlowField") {
-            active_sub_engines_[sub_engine_instance_name] = std::make_unique<EngineFlowField>(global_config.at(sub_engine_instance_name), global_config);
-        } else {
-            throw std::runtime_error("EnginePost: Unknown sub-engine base name: " + base_sub_engine_name + " (from instance " + sub_engine_instance_name + ")");
+
+        auto it_map = engine_key_map_.find(base_sub_engine_name);
+        if (it_map == engine_key_map_.end()) {
+            throw std::runtime_error("EnginePost: Unknown base sub-engine key: " + base_sub_engine_name + " (from instance " + sub_engine_instance_name + ")");
+        }
+
+        switch (it_map->second) {
+            case 0: // EngineFlowField
+                active_sub_engines_[sub_engine_instance_name] = std::make_unique<EngineFlowField>(global_config.at(sub_engine_instance_name), global_config);
+                break;
+            default:
+                throw std::runtime_error("EnginePost: Unknown sub-engine key in execution order: " + sub_engine_instance_name);
         }
     }
 }
