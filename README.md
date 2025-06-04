@@ -1,326 +1,305 @@
-# ParaConfig - 可配置模块化CFD参数系统
+# ParaConfig - 模块化计算流体力学(CFD)配置系统
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+一个基于C++和JSON的模块化CFD预处理、求解和后处理配置管理系统。
 
-ParaConfig是一个基于JSON配置的模块化框架，专为流体动力学(CFD)计算参数管理而设计，提供灵活的模块管理、动态配置和执行流程控制。
+## 项目概述
 
-## 功能特点
+ParaConfig是一个灵活的配置管理系统，用于管理复杂的CFD工作流程。系统采用分层架构设计，支持模块化配置和动态组合。
 
-- **模块化架构**：支持模块的独立开发、测试和部署。
-- **组件化开发**：通过本地注册表和导出机制，支持将模块按功能组件进行组织和管理。
-- **基于JSON的配置**：使用JSON格式定义模块参数、引擎行为和执行流程。
-- **参数校验体系**：提供完整的参数类型、范围和枚举值检查。
-- **工厂绑定机制**：通过工厂绑定控制模块的访问权限（未来增强）。
-- **生命周期管理**：自动管理模块的创建、初始化、执行和释放。
-- **灵活的引擎系统**：支持嵌套引擎和子引擎执行，定义复杂的计算工作流。
-- **资源泄漏检测**：自动检测和报告未释放的模块实例。
-- **访问控制机制**：确保引擎只能访问其绑定工厂中的模块（未来增强）。
-- **命令行接口**：提供生成配置模板、指定配置文件目录等便捷操作。
+### 主要特性
+
+- **模块化设计**: 支持预处理、湍流模型、后处理等各种模块
+- **分层引擎**: 从主进程到子引擎的多层次管理
+- **JSON配置**: 基于JSON Schema的配置验证和默认值生成
+- **动态组合**: 支持模块实例的灵活组合和重用
+- **类型安全**: 使用C++17的std::variant确保类型安全
 
 ## 系统架构
 
-系统由以下核心组件构成：
-
-- **AdvancedRegistry**：模块注册表，负责模块的生命周期管理
-- **engineContext**：引擎上下文，提供模块执行环境和参数访问
-- **Nestedengine**：嵌套引擎，支持定义和执行引擎工作流
-- **ModuleFactory**：模块工厂，负责创建特定类型的模块实例
-- **ModuleTypeRegistry**：模块类型注册表，存储可用模块类型及参数架构
-- **engineExecutionEngine**：引擎执行引擎，处理引擎工作流的执行
-
-### 组件关系图
-
 ```
-                     ┌───────────────────┐
-                     │   ModuleSystem    │
-                     └───────────────────┘
-                               │
-         ┌───────────┬─────────┼─────────┬───────────┐
-         │           │         │         │           │
-┌────────▼───────┐   │  ┌──────▼─────┐   │  ┌────────▼────────────┐
-│AdvancedRegistry│◄──┘  │Nestedengine│   └─►│engineExecutionEngine│
-└────────┬───────┘      └──────┬─────┘      └────────┬────────────┘
-         │                     │                     │
-         │               ┌─────▼──────┐              │
-         └───────────────►engineContext◄─────────────┘
-                         └────────────┘
+EngineMainProcess (主进程引擎)
+├── EnginePre (预处理引擎)
+│   └── EnginePreGrid (网格预处理引擎)
+│       ├── ModulePreCGNS (CGNS预处理模块)
+│       ├── ModulePrePlot3D (Plot3D预处理模块)
+│       └── ModulePreTecplot (Tecplot预处理模块)
+├── EngineSolve (求解引擎)
+│   └── EngineTurbulence (湍流引擎)
+│       ├── ModuleSA (Spalart-Allmaras模型)
+│       ├── ModuleSST (SST k-ω模型)
+│       └── ModuleSSTWDF (SST壁面阻尼函数模型)
+└── EnginePost (后处理引擎)
+    └── EngineFlowField (流场引擎)
+        ├── ModulePostCGNS (CGNS后处理模块)
+        ├── ModulePostPlot3D (Plot3D后处理模块)
+        └── ModulePostTecplot (Tecplot后处理模块)
+```
+
+## 程序执行流程图
+
+```mermaid
+graph TD
+    A[程序启动] --> B{解析命令行参数}
+    
+    B -->|--write-config| C[生成默认配置文件]
+    C --> D[创建config.json]
+    C --> E[创建register.json]
+    D --> F[程序结束]
+    E --> F
+    
+    B -->|--config| G[加载配置文件]
+    G --> H[验证JSON格式]
+    H --> I[检查EngineMainProcess配置]
+    I --> J[创建EngineMainProcess实例]
+    
+    J --> K[Initialize阶段]
+    K --> L[初始化EnginePre]
+    K --> M[初始化EngineSolve]
+    K --> N[初始化EnginePost]
+    
+    L --> L1[初始化EnginePreGrid]
+    L1 --> L2[创建预处理模块实例]
+    L2 --> L3[ModulePreCGNS::Initialize]
+    L2 --> L4[ModulePrePlot3D::Initialize]
+    L2 --> L5[ModulePreTecplot::Initialize]
+    
+    M --> M1[初始化EngineTurbulence]
+    M1 --> M2[创建湍流模块实例]
+    M2 --> M3[ModuleSA::Initialize]
+    M2 --> M4[ModuleSST::Initialize]
+    M2 --> M5[ModuleSSTWDF::Initialize]
+    
+    N --> N1[初始化EngineFlowField]
+    N1 --> N2[创建后处理模块实例]
+    N2 --> N3[ModulePostCGNS::Initialize]
+    N2 --> N4[ModulePostPlot3D::Initialize]
+    N2 --> N5[ModulePostTecplot::Initialize]
+    
+    L3 --> O[Execute阶段]
+    L4 --> O
+    L5 --> O
+    M3 --> O
+    M4 --> O
+    M5 --> O
+    N3 --> O
+    N4 --> O
+    N5 --> O
+    
+    O --> P[执行EnginePre]
+    P --> P1[执行EnginePreGrid]
+    P1 --> P2[按module_execution_order顺序执行]
+    P2 --> P3[ModulePreCGNS::Execute]
+    P3 --> P4[ModulePrePlot3D::Execute]
+    P4 --> P5[ModulePreTecplot::Execute]
+    
+    P5 --> S[执行EngineSolve]
+    S --> S1[执行EngineTurbulence]
+    S1 --> S2[按module_execution_order顺序执行]
+    S2 --> S3[ModuleSA::Execute]
+    S3 --> S4[ModuleSST::Execute]
+    S4 --> S5[ModuleSSTWDF::Execute]
+    
+    S5 --> V[执行EnginePost]
+    V --> V1[执行EngineFlowField]
+    V1 --> V2[按module_execution_order顺序执行]
+    V2 --> V3[ModulePostCGNS::Execute]
+    V3 --> V4[ModulePostPlot3D::Execute]
+    V4 --> V5[ModulePostTecplot::Execute]
+    
+    V5 --> Y[Release阶段]
+    Y --> Y1[按逆序释放EnginePost]
+    Y1 --> Y2[按逆序释放EngineFlowField]
+    Y2 --> Y3[按逆序释放后处理模块]
+    Y3 --> Y4[ModulePostTecplot::Release]
+    Y4 --> Y5[ModulePostPlot3D::Release]
+    Y5 --> Y6[ModulePostCGNS::Release]
+    
+    Y6 --> Y7[按逆序释放EngineSolve]
+    Y7 --> Y8[按逆序释放EngineTurbulence]
+    Y8 --> Y9[按逆序释放湍流模块]
+    Y9 --> Y10[ModuleSSTWDF::Release]
+    Y10 --> Y11[ModuleSST::Release]
+    Y11 --> Y12[ModuleSA::Release]
+    
+    Y12 --> Y13[按逆序释放EnginePre]
+    Y13 --> Y14[按逆序释放EnginePreGrid]
+    Y14 --> Y15[按逆序释放预处理模块]
+    Y15 --> Y16[ModulePreTecplot::Release]
+    Y16 --> Y17[ModulePrePlot3D::Release]
+    Y17 --> Y18[ModulePreCGNS::Release]
+    
+    Y18 --> AA[程序结束]
+    
+    B -->|无效参数| AB[显示使用说明]
+    AB --> AC[程序异常退出]
+    
+    style A fill:#e1f5fe
+    style F fill:#c8e6c9
+    style AA fill:#c8e6c9
+    style AC fill:#ffcdd2
+    
+    style P3 fill:#e8f5e8
+    style P4 fill:#e8f5e8
+    style P5 fill:#e8f5e8
+    style S3 fill:#fff3e0
+    style S4 fill:#fff3e0
+    style S5 fill:#fff3e0
+    style V3 fill:#f3e5f5
+    style V4 fill:#f3e5f5
+    style V5 fill:#f3e5f5
 ```
 
 ## 快速开始
 
-### 安装
+### 编译要求
 
-1. 克隆仓库
-```bash
-git clone https://github.com/yourusername/paraConfig.git
-cd paraConfig
-```
+- C++17或更高版本
+- nlohmann/json库
+- CMake 3.10+
 
-2. 创建构建目录并编译
+### 编译步骤
+
 ```bash
-mkdir build && cd build
+mkdir build
+cd build
 cmake ..
 make
 ```
 
-### 使用示例
+### 基本使用
 
-1. 生成配置模板
+1. **生成默认配置文件**:
 ```bash
-./paraConfig --generate-templates ./templates
+./paraconfig --write-config ./config
 ```
-   如果未指定目录，则默认生成到 `./templates/`。
 
-2. 编辑配置文件
-修改生成的模板文件以适应您的需求。主要配置文件包括：
-- `template_engine_mainProcess.json`：主引擎配置，定义全局参数和主工作流。
-- `template_engine_PreGrid.json`：网格预处理引擎配置。
-- `template_engine_Solve.json`：求解引擎配置。
-- `template_engine_Post.json`：后处理引擎配置。
-- `template_registry_module.json`：模块注册表配置，定义系统中所有可用模块及其默认启用状态。
+这将在`./config`目录下生成:
+- `config.json` - 包含所有模块和引擎的默认参数
+- `register.json` - 包含所有组件的JSON Schema定义
 
-3. 运行程序
+2. **运行配置**:
 ```bash
-./paraConfig --config-dir ./config
+./paraconfig --config ./config/config.json
 ```
-   如果未指定目录，则默认从 `./config/` 加载。
 
-## 配置文件
+## 配置文件结构
 
-系统使用JSON格式的配置文件，主要包含以下部分：
+### config.json 示例结构
 
-1. **引擎定义** (`config_engine_*.json` 中的 `"engine"` 部分): 定义引擎及其子引擎和直接关联的模块
 ```json
-"engine": {
-    "enginePool": [
-        {
-            "name": "PreGrid",
-            "description": "网格预处理引擎",
-            "enabled": true,
-            "modules": [
-                {"name": "PreCGNS", "enabled": true},
-                {"name": "PrePlot3D", "enabled": false}
-            ]
-        }
-    ]
+{
+  "EngineMainProcess": {
+    "execution_order": ["EnginePre", "EngineSolve", "EnginePost"]
+  },
+  "EnginePre": {
+    "execution_order": ["EnginePreGrid"]
+  },
+  "EnginePreGrid": {
+    "module_execution_order": ["ModulePreCGNS"]
+  },
+  "ModulePreCGNS": {
+    "cgns_type": "HDF5",
+    "cgns_value": 15.0
+  }
 }
 ```
 
-2. **模块参数配置** (`config_engine_*.json` 中的 `"config"` 部分): 设置模块的运行参数。也包括全局配置 `GlobalConfig`。
+### 支持的模块类型
+
+#### 预处理模块
+- **ModulePreCGNS**: CGNS文件预处理
+- **ModulePrePlot3D**: Plot3D文件预处理  
+- **ModulePreTecplot**: Tecplot文件预处理
+
+#### 湍流模型模块
+- **ModuleSA**: Spalart-Allmaras一方程模型
+- **ModuleSST**: SST k-ω两方程模型
+- **ModuleSSTWDF**: 带壁面阻尼函数的SST模型
+
+#### 后处理模块
+- **ModulePostCGNS**: CGNS文件输出
+- **ModulePostPlot3D**: Plot3D文件输出
+- **ModulePostTecplot**: Tecplot文件输出
+
+## 高级用法
+
+### 模块实例重用
+
+支持同一模块类型的多个实例:
+
 ```json
-"config": {
-    "GlobalConfig": {
-        "solver": "SIMPLE",
-        "maxIterations": 1000,
-        "convergenceCriteria": 1e-6,
-        "time_step": 0.01
-    },
-    "EulerSolver": {
-        "euler_type": "Standard",
-        "euler_value": 0.5
-    },
-    "PreCGNS": {
-        "cgns_type": "HDF5",
-        "cgns_value": 20
-    }
+{
+  "EngineFlowField": {
+    "module_execution_order": ["ModulePostPlot3D", "ModulePostPlot3D_1", "ModulePostPlot3D_2"]
+  },
+  "ModulePostPlot3D": {
+    "write_q_file": true
+  },
+  "ModulePostPlot3D_1": {
+    "write_q_file": false
+  },
+  "ModulePostPlot3D_2": {
+    "write_q_file": true
+  }
 }
 ```
 
-3. **模块注册** (`config_registry_module.json` 中的 `"registry"` 部分): 注册系统中所有可用的模块及其元数据（通常由程序自动生成模板，用户可修改启用状态）。
+### 引擎重用
+
+支持引擎实例的重用，比如多个后处理阶段:
+
 ```json
-"registry": {
-    "modules": [
-        {"name": "PreCGNS", "enabled": true},
-        {"name": "EulerSolver", "enabled": true}
-    ]
+{
+  "EngineMainProcess": {
+    "execution_order": ["EnginePre", "EngineSolve", "EnginePost", "EnginePost_1"]
+  }
 }
 ```
 
-## 可用模块
+## 文件结构
 
-### 预处理模块
-- **PreCGNS**：CGNS格式数据预处理
-- **PrePlot3D**：Plot3D格式数据预处理
+```
+001/
+├── include/
+│   └── paraConfig.h          # 主头文件，包含所有类声明
+├── source/
+│   ├── paraConfig.cpp        # 主实现文件
+│   └── main.cpp             # 程序入口点
+├── README.md                # 项目文档
+└── build/                   # 编译输出目录
+```
 
-### 求解器模块
-- **EulerSolver**：欧拉方程求解器
-- **SASolver**：Spalart-Allmaras湍流模型求解器
-- **SSTSolver**：SST湍流模型求解器
+## API文档
 
-### 后处理模块
-- **PostCGNS**：CGNS格式结果后处理
-- **PostPlot3D**：Plot3D格式结果后处理
+### 核心类
 
-## 扩展系统
+- **EngineMainProcess**: 主进程管理器，协调整个工作流程
+- **EnginePre/EngineSolve/EnginePost**: 各阶段的顶层引擎
+- **EnginePreGrid/EngineTurbulence/EngineFlowField**: 具体功能引擎
+- **Module***: 各种具体功能模块
 
-### 添加新模块（作为新组件的一部分）
+### 关键方法
 
-推荐将新模块组织在独立的组件中，每个组件负责管理一组相关模块的注册和导出。
+每个引擎和模块都实现了统一的接口:
+- `Initialize()`: 初始化资源
+- `Execute()`: 执行主要逻辑
+- `Release()`: 释放资源
+- `GetParamSchema()`: 返回参数JSON Schema
 
-1.  **创建组件命名空间和文件**：
-    *   例如，为新组件 `MYCOMPONENT` 创建 `my_component.h` 和 `my_component.cpp`。
+## 贡献指南
 
-2.  **定义模块类** (在 `my_component.h` 中):
-    ```cpp
-    // filepath: /home/cfd/paraConfig/include/my_component.h
-    #pragma once
-    #include "advanced_module_system.h" // 包含核心系统头文件
-    #include <string>
-    #include <nlohmann/json.hpp>
-
-    namespace MYCOMPONENT {
-
-    class MyNewModule {
-    public:
-        explicit MyNewModule(const nlohmann::json& params);
-        void initialize();
-        void execute();
-        void release();
-        static nlohmann::json GetParamSchema();
-    private:
-        // 私有成员变量
-        std::string example_param_;
-    };
-
-    // 声明导出函数
-    void exportToGlobalRegistry();
-
-    } // namespace MYCOMPONENT
-
-    // ModuleParamTraits 特化 (在头文件的 ModuleSystem 命名空间中)
-    namespace ModuleSystem {
-    template <> struct ModuleParamTraits<MYCOMPONENT::MyNewModule> {
-        static nlohmann::json GetParamSchema() {
-            return MYCOMPONENT::MyNewModule::GetParamSchema();
-        }
-    };
-    } // namespace ModuleSystem
-    ```
-
-3.  **实现模块逻辑和本地注册** (在 `my_component.cpp` 中):
-    ```cpp
-    // filepath: /home/cfd/paraConfig/source/my_component.cpp
-    #include "my_component.h" // 包含组件头文件
-    #include <iostream> // 用于调试输出
-
-    namespace MYCOMPONENT {
-
-    // --- MyNewModule 实现 ---
-    MyNewModule::MyNewModule(const nlohmann::json& params) {
-        example_param_ = params.value("example_param", "default_value");
-        // 根据 params 初始化模块
-    #if DEBUG
-        std::cout << "MyNewModule constructed with param: " << example_param_ << std::endl;
-    #endif
-    }
-
-    void MyNewModule::initialize() {
-        // 初始化逻辑
-    #if DEBUG
-        std::cout << "MyNewModule initialized." << std::endl;
-    #endif
-    }
-
-    void MyNewModule::execute() {
-        // 执行逻辑
-    #if DEBUG
-        std::cout << "MyNewModule executed." << std::endl;
-    #endif
-    }
-
-    void MyNewModule::release() {
-        // 释放资源逻辑
-    #if DEBUG
-        std::cout << "MyNewModule released." << std::endl;
-    #endif
-    }
-
-    nlohmann::json MyNewModule::GetParamSchema() {
-        return {
-            {"example_param", {
-                {"type", "string"},
-                {"description", "An example parameter for MyNewModule."},
-                {"default", "default_value"}
-            }}
-            // 定义其他参数...
-        };
-    }
-
-    // --- 组件注册与导出 ---
-    static ModuleSystem::LocalTypeRegistry localTypeRegistryInstance;
-    static ModuleSystem::LocalFactory localFactoryInstance;
-
-    // 内部辅助函数，用于注册本组件的所有模块类型和工厂方法
-    void registerComponentModules() {
-        // 1. 注册到本地类型注册表
-        localTypeRegistryInstance.registerType("MyNewModule", 
-            []() -> nlohmann::json { return MyNewModule::GetParamSchema(); });
-        // 如果有其他模块，也在此注册...
-
-        // 2. 注册到本地工厂
-        localFactoryInstance.registerModuleType("MyNewModule", 
-            [](ModuleSystem::AdvancedRegistry* reg, const std::string& name) -> bool { 
-                reg->Register<MyNewModule>(name); // 使用实际模块类
-                return true; 
-            });
-        // 如果有其他模块的工厂方法，也在此注册...
-    }
-
-    void exportToGlobalRegistry() {
-        // a. 确保本组件内的模块已在本地注册
-        registerComponentModules();
-
-    #if DEBUG
-        std::cout << "Exporting MYCOMPONENT modules to global registry..." << std::endl;
-    #endif
-
-        // b. 将本地注册表和工厂导出到全局
-        localTypeRegistryInstance.exportToGlobal();
-        localFactoryInstance.exportToGlobal();
-
-        // c. 将模块关联到对应的引擎（如果适用）
-        // 这是配置驱动的，但可以在此为模块建议一个默认引擎
-        // 实际关联在 paramValidation 中根据配置文件进行
-        // ModuleSystem::ModuleRegistryInitializer::init().assignModuleToEngine("MyNewModule", "TargetEngineName");
-        // 示例：假设 MyNewModule 属于 "Solve" 引擎
-        ModuleSystem::ModuleRegistryInitializer::init().assignModuleToEngine("MyNewModule", "Solve");
-
-
-    #if DEBUG
-        std::cout << "MYCOMPONENT modules export complete." << std::endl;
-    #endif
-    }
-
-    } // namespace MYCOMPONENT
-    ```
-
-4.  **在主程序中导出组件** (修改 `main.cpp`):
-    *   包含新组件的头文件: `#include "my_component.h"`
-    *   在 `main` 函数中调用导出函数: `MYCOMPONENT::exportToGlobalRegistry();`
-    ```cpp
-    // filepath: /home/cfd/paraConfig/source/main.cpp
-    // ...existing code...
-    #include "post.h"
-    #include "my_component.h" // 假设新组件头文件
-    // ...existing code...
-    int main(int argc, char* argv[]) {
-    // ...existing code...
-        SOLVE::exportToGlobalRegistry();
-        POST::exportToGlobalRegistry();
-        MYCOMPONENT::exportToGlobalRegistry(); // 导出新组件的模块
-
-        // 获取配置
-    // ...existing code...
-    ```
-
-5.  **更新CMakeLists.txt** (如果适用):
-    *   将新的 `.cpp` 和 `.h` 文件添加到编译目标中。
-
-6.  **更新配置文件模板和文档**：
-    *   如果模块引入了新的引擎或重要的全局配置，考虑更新 `createengineInfo()` 和 `createRegistryInfo()` 中的默认模板生成逻辑。
-    *   在 `template_registry_module.json` 中应能看到新模块（如果 `createRegistryInfo` 被正确更新或手动添加）。
-    *   在 `config_engine_*.json` 中，可以将新模块添加到相关引擎的 `modules` 列表，并配置其参数。
+1. Fork本项目
+2. 创建功能分支 (`git checkout -b feature/新功能`)
+3. 提交更改 (`git commit -am '添加新功能'`)
+4. 推送到分支 (`git push origin feature/新功能`)
+5. 创建Pull Request
 
 ## 许可证
 
-本项目采用MIT许可证 - 详见 [LICENSE](LICENSE) 文件
+本项目采用MIT许可证 - 查看[LICENSE](LICENSE)文件了解详情。
+
+## 联系方式
+
+如有问题或建议，请通过GitHub Issues联系。
+
+
