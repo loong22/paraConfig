@@ -2000,7 +2000,16 @@ void test(const std::string& engineName, const std::string& action) {
                         for (const auto& moduleInfo : (*engineDef)["modules"]) {
                             if (moduleInfo.contains("name") && moduleInfo.contains("enabled") && 
                                 moduleInfo["enabled"].get<bool>()) {
-                                std::string moduleName = moduleInfo["name"];
+                                std::string moduleName = moduleInfo["name"].get<std::string>();
+                                
+                                if (moduleName == "GlobalConfig") {
+                                    std::string actionStr = "未知";
+                                    if (static_cast<int>(act) < LIFECYCLE_ACTIONS.size()) {
+                                        actionStr = LIFECYCLE_ACTIONS[static_cast<int>(act)];
+                                    }
+                                    std::cout << "  - 模块: " << moduleName << " - 操作 '" << actionStr << "' 已跳过 (GlobalConfig)" << std::endl;
+                                    continue; // 跳过 GlobalConfig 模块的生命周期操作
+                                }
                                 
                                 // 获取模块的有效参数
                                 nlohmann::json moduleParams = getEffectiveModuleParams(
