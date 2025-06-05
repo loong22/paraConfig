@@ -22,30 +22,45 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *********************************************************************/
 
-#include "paraConfig.h" // Provides declarations for helper functions and core classes
+#include "paraConfig.h" // Provides auxiliary functions and core class declarations
 #include <iostream>
 #include <string>
 #include <vector>
-#include <filesystem> // For path manipulation, C++17
+#include <filesystem> // For path operations, C++17
+
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
+#endif
 
 /**
- * @brief Main entry point for the application.
- * Parses command-line arguments to either write default configuration files
- * or run the simulation based on a provided configuration file.
+ * @brief Main entry point of the application.
+ * Parses command line arguments to write default configuration files
+ * or run simulation based on provided configuration file.
  *
- * Command-line options:
- * --write-config <directory_path> : Generates default config.json and register.json
- *                                    in the specified directory.
- * --config <config_file_path>     : Runs the simulation using the specified
- *                                    JSON configuration file.
+ * Command line options:
+ * --write-config <directory_path> : Generate default config.json and register.json in specified directory
+ * --config <config_file_path>     : Run simulation using specified JSON configuration file
  *
- * @param argc Number of command-line arguments.
- * @param argv Array of command-line arguments.
- * @return 0 on successful execution, 1 on error.
+ * @param argc Number of command line arguments.
+ * @param argv Array of command line arguments.
+ * @return Returns 0 on success, 1 on error.
  */
 int main(int argc, char* argv[]) {
+
+#ifdef _WIN32
+    // Set console code page to UTF-8
+    SetConsoleOutputCP(CP_UTF8);
+    _setmode(_fileno(stdout), _O_BINARY);
+    std::cout.setf(std::ios::unitbuf);
+    std::cerr.setf(std::ios::unitbuf);
+    setvbuf(stdout, nullptr, _IONBF, 0);
+    setvbuf(stderr, nullptr, _IONBF, 0);
+#endif
+
     if (argc < 2) {
-        std::cerr << "Usage: " << std::endl;
+        std::cerr << "Usage:" << std::endl;
         std::cerr << "  " << argv[0] << " --write-config <directory_path>" << std::endl;
         std::cerr << "  " << argv[0] << " --config <config_file_path>" << std::endl; 
         return 1;
@@ -56,42 +71,39 @@ int main(int argc, char* argv[]) {
     try {
         if (option == "--write-config") {
             if (argc < 3) {
-                std::cerr << "Error: Missing directory path for --write-config." << std::endl;
+                std::cerr << "Error: --write-config missing directory path." << std::endl;
                 return 1;
             }
             std::string dir_path = argv[2];
             WriteDefaultConfigs(dir_path); 
-            std::cout << "Default configuration files generated in: " << dir_path << std::endl;
-
-        } else if (option == "--config") {
+            std::cout << "Default configuration files generated at: " << dir_path << std::endl;
+        } 
+        else if (option == "--config") {
             if (argc < 3) {
-                std::cerr << "Error: Missing config file path for --config." << std::endl; 
+                std::cerr << "Error: --config missing configuration file path." << std::endl; 
                 return 1;
             }
-            std::filesystem::path config_file_path = argv[2];
+            std::string configFile = argv[2];
             
-            nlohmann::json global_config_json;
-            LoadGlobalConfig(config_file_path, global_config_json);
+            nlohmann::json config;
 
-            std::cout << "Global configuration loaded from: " << config_file_path.string() << std::endl;
-            // std::cout << "Loaded config content:\n" << global_config_json.dump(4) << std::endl; // For debugging
+            // The default read path is the ./config folder under the program execution directory.
+            LoadConfig(configFile, config);
 
-            if (!global_config_json.contains("EngineMainProcess")) {
-                throw std::runtime_error("Entry point 'EngineMainProcess' not found in the global configuration file.");
-            }
-
-            // The parameters for EngineMainProcess itself are under its key in the global config.
-            EngineMainProcess main_process(global_config_json.at("EngineMainProcess"), global_config_json);
+            // Parameters for EngineMainProcess itself are under its key in the global configuration.
+            EngineMainProcess main_process(config);
             
             main_process.Initialize();
+
             main_process.Execute();
+
             main_process.Release();
 
-            std::cout << "Processing finished." << std::endl;
-
-        } else {
+            std::cout << "Processing completed." << std::endl;
+        } 
+        else {
             std::cerr << "Error: Unknown option: " << option << std::endl;
-            std::cerr << "Run with no arguments for usage information." << std::endl;
+            std::cerr << "Run without arguments to get usage information." << std::endl;
             return 1;
         }
     } catch (const std::exception& e) {
