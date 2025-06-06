@@ -1,29 +1,4 @@
-/********************************************************************
-MIT License
-
-Copyright (c) 2025 loong22
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*********************************************************************/
-
-#ifndef PARACONFIG_H
-#define PARACONFIG_H
+#pragma once
 
 #include "nlohmann/json.hpp"
 #include <string>
@@ -31,13 +6,11 @@ SOFTWARE.
 #include <map>
 #include <memory>
 #include <variant>
-#include <stdexcept> // For std::runtime_error
+#include <stdexcept>
 #include <iostream>
-#include <fstream>   // For file operations
-#include <filesystem> // For std::filesystem::path
-
-// Forward declaration of nlohmann::json, if "nlohmann/json.hpp" is not fully included
-// namespace nlohmann { template<typename T, typename S, typename ...Args> class basic_json; using json = basic_json<std::map, std::vector, std::string, bool, std::int64_t, std::uint64_t, double, std::allocator, adl_serializer>; }
+#include <fstream>
+#include <filesystem>
+#include <functional>
 
 // Forward declarations
 class ModulePreCGNS;
@@ -55,11 +28,6 @@ class EngineTurbulence;
 class EngineFlowField;
 class EnginePre;
 class EngineSolve;
-class EnginePost;
-class EngineMainProcess;
-
-// --- Auxiliary function declarations ---
-
 class EnginePost;
 class EngineMainProcess;
 
@@ -94,11 +62,60 @@ using EngineSolveVariant = std::variant<
 using EnginePostVariant = std::variant<
     std::unique_ptr<EngineFlowField>>;
 
-// --- Auxiliary function declarations ---
-/*
- * @param j_obj The nlohmann::json object to write.
+// --- Factory Pattern for Engine/Module Creation ---
+/**
+ * @brief Template factory class for creating engines and modules.
+ * @tparam VariantType The std::variant type that will hold the created engine/module.
  */
-void WriteJsonFile(const std::string& dir_path, const std::string& filename, const nlohmann::json& j_obj);
+template<typename VariantType>
+class ComponentFactory {
+public:
+    using CreatorFunc = std::function<VariantType(const nlohmann::json&)>;
+    
+    /**
+     * @brief Register a component creator function.
+     * @param name Component name.
+     * @param creator Function that creates the component.
+     */
+    void RegisterCreator(const std::string& name, CreatorFunc creator) {
+        creators_[name] = creator;
+    }
+    
+    /**
+     * @brief Create a component by name.
+     * @param name Component name.
+     * @param config Configuration for the component.
+     * @return Created component wrapped in variant.
+     */
+    VariantType Create(const std::string& name, const nlohmann::json& config) {
+        auto it = creators_.find(name);
+        if (it != creators_.end()) {
+            return it->second(config);
+        }
+        throw std::runtime_error("Unknown component name: " + name);
+    }
+    
+    /**
+     * @brief Get singleton instance of factory.
+     * @return Reference to factory instance.
+     */
+    static ComponentFactory& Instance() {
+        static ComponentFactory instance;
+        return instance;
+    }
+
+private:
+    std::map<std::string, CreatorFunc> creators_;
+};
+
+// Factory type aliases
+using MainProcessFactory = ComponentFactory<EngineMainProcessVariant>;
+using PreFactory = ComponentFactory<EnginePreVariant>;
+using SolveFactory = ComponentFactory<EngineSolveVariant>;
+using PostFactory = ComponentFactory<EnginePostVariant>;
+using PreGridFactory = ComponentFactory<EnginePreGridVariant>;
+using TurbulenceFactory = ComponentFactory<EngineTurbulenceVariant>;
+using FlowFieldFactory = ComponentFactory<EngineFlowFieldVariant>;
 
 /**
  * @brief Extracts the base name from an instance name.
@@ -160,10 +177,17 @@ public:
     /** @brief Release any resources held by the module. */
     void Release();
     /**
+     * @brief Validate parameters for this module.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this module's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
 protected:
     std::string cgns_type_;
     double cgns_value_;
@@ -187,10 +211,17 @@ public:
     /** @brief Release any resources held by the module. */
     void Release();
     /**
+     * @brief Validate parameters for this module.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this module's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
 protected:
     std::string plot3d_option_;
 };
@@ -213,10 +244,17 @@ public:
     /** @brief Release any resources held by the module. */
     void Release();
     /**
+     * @brief Validate parameters for this module.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this module's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
 protected:
     bool tecplot_binary_format_;
 };
@@ -239,10 +277,17 @@ public:
     /** @brief Release any resources held by the module. */
     void Release();
     /**
+     * @brief Validate parameters for this module.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this module's parameters.
      * @return nlohmann::json object representing the schema.
      */
-    static nlohmann::json GetParamSchema(); 
+    static nlohmann::json GetParamSchema();
+    
 protected:
     double sa_constant_;
     const double kSaMaxValue_ = 0.41; 
@@ -267,10 +312,17 @@ public:
     /** @brief Release any resources held by the module. */
     void Release();
     /**
+     * @brief Validate parameters for this module.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this module's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
 protected:
     int sst_iterations_;
 };
@@ -293,10 +345,17 @@ public:
     /** @brief Release any resources held by the module. */
     void Release();
     /**
+     * @brief Validate parameters for this module.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this module's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
 protected:
     std::string wdf_model_name_;
 };
@@ -319,10 +378,17 @@ public:
     /** @brief Release any resources held by the module. */
     void Release();
     /**
+     * @brief Validate parameters for this module.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this module's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
 protected:
     std::string output_cgns_name_;
 };
@@ -345,10 +411,17 @@ public:
     /** @brief Release any resources held by the module. */
     void Release();
     /**
+     * @brief Validate parameters for this module.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this module's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
 protected:
     bool write_q_file_;
 };
@@ -371,10 +444,17 @@ public:
     /** @brief Release any resources held by the module. */
     void Release();
     /**
+     * @brief Validate parameters for this module.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this module's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
 protected:
     std::string tecplot_zone_title_;
 };
@@ -400,10 +480,19 @@ public:
     /** @brief Release resources held by the engine and its modules. */
     void Release();
     /**
+     * @brief Validate parameters for this engine.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this engine's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+
+    // Static factory instance for this engine
+    static PreFactory factory_;
 
 protected:
     const std::string modulePreCGNS = "ModulePreCGNS";
@@ -413,6 +502,15 @@ protected:
     std::map<std::string, EnginePreGridVariant> subModulesPool;
 
     std::vector<std::string> execution_order_;
+
+private:
+    /**
+     * @brief Create module instance by name
+     * @param module_name Module name to create
+     * @param config Module configuration
+     * @return Created module wrapped in variant
+     */
+    EnginePreGridVariant CreateModule(const std::string& module_name, const nlohmann::json& config);
 };
 
 /**
@@ -434,10 +532,20 @@ public:
     /** @brief Release resources held by the engine and its modules. */
     void Release();
     /**
+     * @brief Validate parameters for this engine.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this engine's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
+    // Static factory instance for this engine
+    static SolveFactory factory_;
+    
 protected:
     const std::string moduleSA = "ModuleSA";
     const std::string moduleSST = "ModuleSST";
@@ -446,6 +554,15 @@ protected:
     std::map<std::string, EngineTurbulenceVariant> subModulesPool;
 
     std::vector<std::string> execution_order_;
+
+private:
+    /**
+     * @brief Create module instance by name
+     * @param module_name Module name to create
+     * @param config Module configuration
+     * @return Created module wrapped in variant
+     */
+    EngineTurbulenceVariant CreateModule(const std::string& module_name, const nlohmann::json& config);
 };
 
 /**
@@ -467,10 +584,20 @@ public:
     /** @brief Release resources held by the engine and its modules. */
     void Release();
     /**
+     * @brief Validate parameters for this engine.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this engine's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
+    // Static factory instance for this engine
+    static PostFactory factory_;
+    
 protected:
     const std::string modulePostCGNS = "ModulePostCGNS";
     const std::string modulePostPlot3D = "ModulePostPlot3D";
@@ -479,6 +606,15 @@ protected:
     std::map<std::string, EngineFlowFieldVariant> subModulesPool;
 
     std::vector<std::string> execution_order_;
+
+private:
+    /**
+     * @brief Create module instance by name
+     * @param module_name Module name to create
+     * @param config Module configuration
+     * @return Created module wrapped in variant
+     */
+    EngineFlowFieldVariant CreateModule(const std::string& module_name, const nlohmann::json& config);
 };
 
 /**
@@ -500,10 +636,20 @@ public:
     /** @brief Release resources held by the engine and its sub-engines. */
     void Release();
     /**
+     * @brief Validate parameters for this engine.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this engine's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
+    // Static factory instance for this engine
+    static MainProcessFactory factory_;
+    
 protected:
     const std::string enginePreGrid = "EnginePreGrid";
     
@@ -531,10 +677,20 @@ public:
     /** @brief Release resources held by the engine and its sub-engines. */
     void Release();
     /**
+     * @brief Validate parameters for this engine.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this engine's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
+    // Static factory instance for this engine
+    static MainProcessFactory factory_;
+    
 protected:
     const std::string engineTurbulence = "EngineTurbulence";
     
@@ -562,10 +718,20 @@ public:
     /** @brief Release resources held by the engine and its sub-engines. */
     void Release();
     /**
+     * @brief Validate parameters for this engine.
+     * @param params JSON parameters to validate.
+     * @throw std::runtime_error If validation fails.
+     */
+    void ParamValidation(const nlohmann::json& params);
+    /**
      * @brief Get JSON schema for this engine's parameters.
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    
+    // Static factory instance for this engine
+    static MainProcessFactory factory_;
+    
 protected:
     const std::string engineFlowField = "EngineFlowField";
     
@@ -597,101 +763,96 @@ public:
      * @return nlohmann::json object representing the schema.
      */
     static nlohmann::json GetParamSchema();
+    void ParamValidation(const nlohmann::json& params);
+    
+    /**
+     * @brief Register all engines with their respective factories.
+     * This ensures factories are ready before any engine instantiation.
+     */
+    static void RegisterAllEngines();
+    
 protected:
-
-    // If need to add sub-engines, first add string key name, then add to map TODO
-    const std::string enginePre = "EnginePre"; // TODO
-    const std::string engineSolve = "EngineSolve"; // TODO
-    const std::string enginePost = "EnginePost"; // TODO
+    const std::string enginePre = "EnginePre";
+    const std::string engineSolve = "EngineSolve";
+    const std::string enginePost = "EnginePost";
     
     std::map<std::string, EngineMainProcessVariant> subEnginesPool;
 
     std::vector<std::string> execution_order_ = {enginePre, engineSolve, enginePost}; // Only in EngineMainProcess subEngine order is specified.For other engines, the execution order of their lower-level engines or modules needs to be obtained from the json configuration file.
 };
 
-// --- Template helpers for engine and module management ---
-/**
- * @brief Template helper to create the appropriate engine or module by name.
- * This template function maps a string identifier to the corresponding engine/module class.
- * @tparam EngineVariantType The std::variant type that will hold the created engine/module.
- * @param subEngineName The name of the engine/module to create.
- * @param config JSON configuration for the engine/module construction.
- * @return A variant containing the unique_ptr to the created engine/module.
- * @throw std::runtime_error if an unknown engine/module name is provided.
+// --- Auxiliary function declarations ---
+/*
+ * @param j_obj The nlohmann::json object to write.
  */
-#define CREATE_ENGINE_MAPPING(VariantType, EngineName, EngineClass) \
-    if constexpr (std::is_same_v<EngineVariantType, VariantType>) { \
-        if (subEngineName == EngineName) { \
-            return std::make_unique<EngineClass>(config); \
-        } \
-    }
+void WriteJsonFile(const std::string& dir_path, const std::string& filename, const nlohmann::json& j_obj);
 
 /**
- * @brief Template function for creating engine or module instances by name.
- * 
- * This template function maps string identifiers to their corresponding engine or module classes.
- * It's used throughout the component hierarchy to instantiate the appropriate objects based on
- * configuration data. The function uses compile-time type checking through constexpr and
- * std::is_same_v to ensure type safety when creating components.
- * 
- * @tparam EngineVariantType The std::variant type that will hold the created engine/module.
- * @param subEngineName The name of the engine/module to create.
- * @param config JSON configuration for the engine/module construction.
- * @return A variant containing the unique_ptr to the created engine/module.
- * @throw std::runtime_error if an unknown engine/module name is provided.
+ * @brief Template specializations for factory access - avoiding runtime if-else checks
  */
-template<typename EngineVariantType>
-EngineVariantType CreateEngineByName(const std::string& subEngineName, const nlohmann::json& config)
-{
-    CREATE_ENGINE_MAPPING(EngineMainProcessVariant, "EnginePre", EnginePre)
-    CREATE_ENGINE_MAPPING(EngineMainProcessVariant, "EngineSolve", EngineSolve)
-    CREATE_ENGINE_MAPPING(EngineMainProcessVariant, "EnginePost", EnginePost)
-    
-    CREATE_ENGINE_MAPPING(EnginePreVariant, "EnginePreGrid", EnginePreGrid)
-    CREATE_ENGINE_MAPPING(EngineSolveVariant, "EngineTurbulence", EngineTurbulence)
-    CREATE_ENGINE_MAPPING(EnginePostVariant, "EngineFlowField", EngineFlowField)
-    
-    CREATE_ENGINE_MAPPING(EnginePreGridVariant, "ModulePreCGNS", ModulePreCGNS)
-    CREATE_ENGINE_MAPPING(EnginePreGridVariant, "ModulePrePlot3D", ModulePrePlot3D)
-    CREATE_ENGINE_MAPPING(EnginePreGridVariant, "ModulePreTecplot", ModulePreTecplot)
-    
-    CREATE_ENGINE_MAPPING(EngineTurbulenceVariant, "ModuleSA", ModuleSA)
-    CREATE_ENGINE_MAPPING(EngineTurbulenceVariant, "ModuleSST", ModuleSST)
-    CREATE_ENGINE_MAPPING(EngineTurbulenceVariant, "ModuleSSTWDF", ModuleSSTWDF)
-    
-    CREATE_ENGINE_MAPPING(EngineFlowFieldVariant, "ModulePostCGNS", ModulePostCGNS)
-    CREATE_ENGINE_MAPPING(EngineFlowFieldVariant, "ModulePostPlot3D", ModulePostPlot3D)
-    CREATE_ENGINE_MAPPING(EngineFlowFieldVariant, "ModulePostTecplot", ModulePostTecplot)
-    
-    throw std::runtime_error("Unknown engine/module name: " + subEngineName);
-}
+template<typename VariantType>
+struct FactoryProvider;
+
+template<>
+struct FactoryProvider<EngineMainProcessVariant> {
+    static auto& GetFactory() { return MainProcessFactory::Instance(); }
+};
+
+template<>
+struct FactoryProvider<EnginePreVariant> {
+    static auto& GetFactory() { return PreFactory::Instance(); }
+};
+
+template<>
+struct FactoryProvider<EngineSolveVariant> {
+    static auto& GetFactory() { return SolveFactory::Instance(); }
+};
+
+template<>
+struct FactoryProvider<EnginePostVariant> {
+    static auto& GetFactory() { return PostFactory::Instance(); }
+};
+
+template<>
+struct FactoryProvider<EnginePreGridVariant> {
+    static auto& GetFactory() { return PreGridFactory::Instance(); }
+};
+
+template<>
+struct FactoryProvider<EngineTurbulenceVariant> {
+    static auto& GetFactory() { return TurbulenceFactory::Instance(); }
+};
+
+template<>
+struct FactoryProvider<EngineFlowFieldVariant> {
+    static auto& GetFactory() { return FlowFieldFactory::Instance(); }
+};
 
 /**
- * @brief Template helper function to construct sub-engines or modules.
+ * @brief Template helper function to construct sub-engines (for engine-to-engine relationships).
  * 
- * This function loads configurations for each sub-engine or module specified in the execution order,
- * instantiates them using the CreateEngineByName function, and stores them in the provided map.
+ * This function loads configurations for each sub-engine specified in the execution order,
+ * instantiates them using the factory pattern, and stores them in the provided map.
  * 
- * @tparam EngineVariantType The variant type containing unique_ptr to engines or modules.
+ * @tparam EngineVariantType The variant type containing unique_ptr to engines.
  * @param execution_order Vector of component names in their execution sequence.
- * @param subEnginesPool Map to store the created engine/module instances.
+ * @param subEnginesPool Map to store the created engine instances.
  */
 template<typename EngineVariantType>
 void ConstructSubEngines(
     const std::vector<std::string>& execution_order,
     std::map<std::string, EngineVariantType>& subEnginesPool) 
 {
+    auto& factory = FactoryProvider<EngineVariantType>::GetFactory();
+    
     for (const auto& subEngineName : execution_order)
     {
-        // 1. Read JSON file based on subEngineName
-        // 2. Pass JSON file to sub-engine for construction
-        // 3. Put the following code in parent class, each engine calls this function in constructor and adds error handling
-        // 4. Constructor first constructs execution_order_, then executes function in step 3
         nlohmann::json config;
         std::string configFileName = subEngineName + ".json";
         std::string baseEngineName = GetBaseName(subEngineName);
         LoadConfig(configFileName, config);
-        subEnginesPool[subEngineName] = CreateEngineByName<EngineVariantType>(baseEngineName, config);
+        
+        subEnginesPool[subEngineName] = factory.Create(baseEngineName, config);
     }
 }
 
@@ -757,5 +918,3 @@ void ReleaseSubEngines(
 }
 
 // Check if engine and module classes have 4 common functions, if not, report error and exit at compile stage TODO
-
-#endif // PARACONFIG_H
