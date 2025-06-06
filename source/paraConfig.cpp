@@ -2,16 +2,6 @@
 #include <regex> // Required for GetBaseName function
 #include <filesystem> // Required for WriteJsonFile, LoadGlobalConfig functions
 
-// Static factory variable definitions - only for engines
-PreFactory EnginePreGrid::factory_;
-SolveFactory EngineTurbulence::factory_;
-PostFactory EngineFlowField::factory_;
-MainProcessFactory EnginePre::factory_;
-MainProcessFactory EngineSolve::factory_;
-MainProcessFactory EnginePost::factory_;
-
-
-
 // --- Auxiliary function implementations ---
 
 /**
@@ -520,208 +510,159 @@ nlohmann::json ModulePostTecplot::GetParamSchema()
     };
 }
 
+// --- EngineMainProcess ---
+
+// EngineMainProcess static constant member definition and initialization
+EngineMainProcess::EngineMainProcess(const nlohmann::json& config)
+{
+    InitializeFactory();
+    ParamValidation(config);
+    ConstructSubEngines<EngineMainProcessVariant>(execution_order_, subEnginesPool, factory_);
+}
+
+void EngineMainProcess::InitializeFactory()
+{
+    factory_.RegisterCreator("EnginePre", 
+        [](const nlohmann::json& config) -> EngineMainProcessVariant {
+            return std::make_unique<EnginePre>(config);
+        });
+    factory_.RegisterCreator("EngineSolve", 
+        [](const nlohmann::json& config) -> EngineMainProcessVariant {
+            return std::make_unique<EngineSolve>(config);
+        });
+    factory_.RegisterCreator("EnginePost", 
+        [](const nlohmann::json& config) -> EngineMainProcessVariant {
+            return std::make_unique<EnginePost>(config);
+        });
+}
+
 // --- EnginePre ---
 EnginePre::EnginePre(const nlohmann::json& instance_params) 
 {
+    InitializeFactory();
     ParamValidation(instance_params);
     execution_order_ = instance_params["execution_order"].get<std::vector<std::string>>();
-    ConstructSubEngines<EnginePreVariant>(execution_order_, subEnginesPool);
+    ConstructSubEngines<EnginePreVariant>(execution_order_, subEnginesPool, factory_);
 }
 
-void EnginePre::ParamValidation(const nlohmann::json& params)
+void EnginePre::InitializeFactory()
 {
-    if (!params.contains("execution_order")) {
-        throw std::runtime_error("EnginePre: parameter 'execution_order' is missing.");
-    }
-    if (!params.at("execution_order").is_array()) {
-        throw std::runtime_error("EnginePre: parameter 'execution_order' must be an array.");
-    }
-}
-void EnginePre::Initialize() 
-{
-    InitializeSubEngines<EnginePreVariant>(execution_order_, subEnginesPool);
-}
-void EnginePre::Execute() 
-{
-    ExecuteSubEngines<EnginePreVariant>(execution_order_, subEnginesPool);
-}
-void EnginePre::Release() 
-{
-    ReleaseSubEngines<EnginePreVariant>(execution_order_, subEnginesPool);
-}
-nlohmann::json EnginePre::GetParamSchema() 
-{
-    return {
-        {"description", "Pre Engine: manages pre-processing stage"},
-        {"execution_type", {{"type", "string"}, {"enum", {"sequential"}}, {"default", "sequential"}}},
-        {"execution_order", {
-            {"type", "array"}, 
-            {"items", {
-                {"type", "string"}, 
-                {"enum", {"EnginePreGrid", "EnginePreGrid_1"}}
-            }}, 
-            {"default", {"EnginePreGrid"}} 
-        }},
-        {"sub_engine_parameters_schemas", {
-            {"EnginePreGrid", EnginePreGrid::GetParamSchema()},
-            {"EnginePreGrid_1", EnginePreGrid::GetParamSchema()} // Points to base schema
-        }}
-    };
+    factory_.RegisterCreator("EnginePreGrid", 
+        [](const nlohmann::json& config) -> EnginePreVariant {
+            return std::make_unique<EnginePreGrid>(config);
+        });
 }
 
 // --- EngineSolve ---
 EngineSolve::EngineSolve(const nlohmann::json& instance_params)
 {
+    InitializeFactory();
     ParamValidation(instance_params);
     execution_order_ = instance_params["execution_order"].get<std::vector<std::string>>();
-    ConstructSubEngines<EngineSolveVariant>(execution_order_, subEnginesPool);
+    ConstructSubEngines<EngineSolveVariant>(execution_order_, subEnginesPool, factory_);
 }
 
-void EngineSolve::ParamValidation(const nlohmann::json& params)
+void EngineSolve::InitializeFactory()
 {
-    if (!params.contains("execution_order")) {
-        throw std::runtime_error("EngineSolve: parameter 'execution_order' is missing.");
-    }
-    if (!params.at("execution_order").is_array()) {
-        throw std::runtime_error("EngineSolve: parameter 'execution_order' must be an array.");
-    }
-}
-void EngineSolve::Initialize()
-{ 
-    InitializeSubEngines<EngineSolveVariant>(execution_order_, subEnginesPool);
-}
-void EngineSolve::Execute()
-{ 
-    ExecuteSubEngines<EngineSolveVariant>(execution_order_, subEnginesPool);
-}
-void EngineSolve::Release()
-{
-    ReleaseSubEngines<EngineSolveVariant>(execution_order_, subEnginesPool);
-}
-nlohmann::json EngineSolve::GetParamSchema()
-{
-     return {
-        {"description", "Solve Engine: manages solver stage"},
-        {"execution_type", {{"type", "string"}, {"enum", {"sequential"}}, {"default", "sequential"}}},
-        {"execution_order", {
-            {"type", "array"}, 
-            {"items", {
-                {"type", "string"}, 
-                {"enum", {"EngineTurbulence", "EngineTurbulence_1"}}
-            }}, 
-            {"default", {"EngineTurbulence"}} 
-        }},
-        {"sub_engine_parameters_schemas", {
-            {"EngineTurbulence", EngineTurbulence::GetParamSchema()},
-            {"EngineTurbulence_1", EngineTurbulence::GetParamSchema()} // Points to base schema
-        }}
-    };
+    factory_.RegisterCreator("EngineTurbulence", 
+        [](const nlohmann::json& config) -> EngineSolveVariant {
+            return std::make_unique<EngineTurbulence>(config);
+        });
 }
 
 // --- EnginePost ---
 EnginePost::EnginePost(const nlohmann::json& instance_params)
 {
+    InitializeFactory();
     ParamValidation(instance_params);
     execution_order_ = instance_params["execution_order"].get<std::vector<std::string>>();
-    ConstructSubEngines<EnginePostVariant>(execution_order_, subEnginesPool);
+    ConstructSubEngines<EnginePostVariant>(execution_order_, subEnginesPool, factory_);
 }
 
-void EnginePost::ParamValidation(const nlohmann::json& params)
+void EnginePost::InitializeFactory()
 {
-    if (!params.contains("execution_order")) {
-        throw std::runtime_error("EnginePost: parameter 'execution_order' is missing.");
-    }
-    if (!params.at("execution_order").is_array()) {
-        throw std::runtime_error("EnginePost: parameter 'execution_order' must be an array.");
-    }
-}
-void EnginePost::Initialize()
-{
-    InitializeSubEngines<EnginePostVariant>(execution_order_, subEnginesPool);
-}
-void EnginePost::Execute()
-{
-    ExecuteSubEngines<EnginePostVariant>(execution_order_, subEnginesPool);
-}
-void EnginePost::Release()
-{
-    ReleaseSubEngines<EnginePostVariant>(execution_order_, subEnginesPool);
-}
-nlohmann::json EnginePost::GetParamSchema()
-{
-    return {
-        {"description", "Post Engine: manages post-processing stage"},
-        {"execution_type", {{"type", "string"}, {"enum", {"sequential"}}, {"default", "sequential"}}},
-        {"execution_order", {
-            {"type", "array"}, 
-            {"items", {
-                {"type", "string"}, 
-                {"enum", {"EngineFlowField", "EngineFlowField_1"}}
-            }}, 
-            {"default", {"EngineFlowField"}} 
-        }},
-        {"sub_engine_parameters_schemas", {
-            {"EngineFlowField", EngineFlowField::GetParamSchema()},
-            {"EngineFlowField_1", EngineFlowField::GetParamSchema()} 
-        }}
-    };
+    factory_.RegisterCreator("EngineFlowField", 
+        [](const nlohmann::json& config) -> EnginePostVariant {
+            return std::make_unique<EngineFlowField>(config);
+        });
 }
 
-// --- EngineMainProcess ---
-
-// Add static registration function
-void EngineMainProcess::RegisterAllEngines()
+// --- EnginePreGrid ---
+EnginePreGrid::EnginePreGrid(const nlohmann::json& instance_params)
 {
-    static bool registered = false;
-    if (!registered) {
-        // Register main process engines
-        MainProcessFactory::Instance().RegisterCreator("EnginePre", 
-            [](const nlohmann::json& config) -> EngineMainProcessVariant {
-                return std::make_unique<EnginePre>(config);
-            });
-        MainProcessFactory::Instance().RegisterCreator("EngineSolve", 
-            [](const nlohmann::json& config) -> EngineMainProcessVariant {
-                return std::make_unique<EngineSolve>(config);
-            });
-        MainProcessFactory::Instance().RegisterCreator("EnginePost", 
-            [](const nlohmann::json& config) -> EngineMainProcessVariant {
-                return std::make_unique<EnginePost>(config);
-            });
-        
-        // Register sub-engines
-        PreFactory::Instance().RegisterCreator("EnginePreGrid", 
-            [](const nlohmann::json& config) -> EnginePreVariant {
-                return std::make_unique<EnginePreGrid>(config);
-            });
-        SolveFactory::Instance().RegisterCreator("EngineTurbulence", 
-            [](const nlohmann::json& config) -> EngineSolveVariant {
-                return std::make_unique<EngineTurbulence>(config);
-            });
-        PostFactory::Instance().RegisterCreator("EngineFlowField", 
-            [](const nlohmann::json& config) -> EnginePostVariant {
-                return std::make_unique<EngineFlowField>(config);
-            });
-        
-        registered = true;
-    }
+    InitializeFactory();
+    ParamValidation(instance_params);
+    execution_order_ = instance_params["execution_order"].get<std::vector<std::string>>();
+    ConstructSubEngines<EnginePreGridVariant>(execution_order_, subModulesPool, factory_);
 }
 
-// EngineMainProcess static constant member definition and initialization
-EngineMainProcess::EngineMainProcess(const nlohmann::json& config)
+void EnginePreGrid::InitializeFactory()
 {
-    // Ensure all engines are registered before using factories
-    RegisterAllEngines();
-    
-    ParamValidation(config);
-    ConstructSubEngines<EngineMainProcessVariant>(execution_order_, subEnginesPool);
+    factory_.RegisterCreator("ModulePreCGNS", 
+        [](const nlohmann::json& config) -> EnginePreGridVariant {
+            return std::make_unique<ModulePreCGNS>(config);
+        });
+    factory_.RegisterCreator("ModulePrePlot3D", 
+        [](const nlohmann::json& config) -> EnginePreGridVariant {
+            return std::make_unique<ModulePrePlot3D>(config);
+        });
+    factory_.RegisterCreator("ModulePreTecplot", 
+        [](const nlohmann::json& config) -> EnginePreGridVariant {
+            return std::make_unique<ModulePreTecplot>(config);
+        });
 }
 
-void EngineMainProcess::ParamValidation(const nlohmann::json& params)
+// --- EngineTurbulence ---
+EngineTurbulence::EngineTurbulence(const nlohmann::json& instance_params)
 {
-    // EngineMainProcess uses default execution_order, no validation needed for now
-    // Can add validation for optional parameters if needed in the future
+    InitializeFactory();
+    ParamValidation(instance_params);
+    execution_order_ = instance_params["execution_order"].get<std::vector<std::string>>();
+    ConstructSubEngines<EngineTurbulenceVariant>(execution_order_, subModulesPool, factory_);
 }
 
+void EngineTurbulence::InitializeFactory()
+{
+    factory_.RegisterCreator("ModuleSA", 
+        [](const nlohmann::json& config) -> EngineTurbulenceVariant {
+            return std::make_unique<ModuleSA>(config);
+        });
+    factory_.RegisterCreator("ModuleSST", 
+        [](const nlohmann::json& config) -> EngineTurbulenceVariant {
+            return std::make_unique<ModuleSST>(config);
+        });
+    factory_.RegisterCreator("ModuleSSTWDF", 
+        [](const nlohmann::json& config) -> EngineTurbulenceVariant {
+            return std::make_unique<ModuleSSTWDF>(config);
+        });
+}
+
+// --- EngineFlowField ---
+EngineFlowField::EngineFlowField(const nlohmann::json& instance_params) 
+{
+    InitializeFactory();
+    ParamValidation(instance_params);
+    execution_order_ = instance_params["execution_order"].get<std::vector<std::string>>();
+    ConstructSubEngines<EngineFlowFieldVariant>(execution_order_, subModulesPool, factory_);
+}
+
+void EngineFlowField::InitializeFactory()
+{
+    factory_.RegisterCreator("ModulePostCGNS", 
+        [](const nlohmann::json& config) -> EngineFlowFieldVariant {
+            return std::make_unique<ModulePostCGNS>(config);
+        });
+    factory_.RegisterCreator("ModulePostPlot3D", 
+        [](const nlohmann::json& config) -> EngineFlowFieldVariant {
+            return std::make_unique<ModulePostPlot3D>(config);
+        });
+    factory_.RegisterCreator("ModulePostTecplot", 
+        [](const nlohmann::json& config) -> EngineFlowFieldVariant {
+            return std::make_unique<ModulePostTecplot>(config);
+        });
+}
+
+// --- EngineMainProcess 其他方法实现 ---
 void EngineMainProcess::Initialize()
 {
     InitializeSubEngines<EngineMainProcessVariant>(execution_order_, subEnginesPool);
@@ -737,56 +678,143 @@ void EngineMainProcess::Release()
     ReleaseSubEngines<EngineMainProcessVariant>(execution_order_, subEnginesPool);
 }
 
+void EngineMainProcess::ParamValidation(const nlohmann::json& params)
+{
+    // 主流程引擎的参数验证逻辑
+    if (params.contains("execution_order")) {
+        if (!params.at("execution_order").is_array()) {
+            throw std::runtime_error("EngineMainProcess: 'execution_order' must be an array.");
+        }
+    }
+}
+
 nlohmann::json EngineMainProcess::GetParamSchema()
 {
     return {
-        {"description", "Main Process Engine: coordinates the overall workflow"},
-        {"execution_type", {{"type", "string"}, {"enum", {"sequential"}}, {"default", "sequential"}}},
         {"execution_order", {
             {"type", "array"},
-            {"description", "Ordered list of top-level engines to execute"},
-            {"items", {
-                {"type", "string"},
-                {"enum", {"EnginePre", "EngineSolve", "EnginePost"}}
-            }},
+            {"description", "Execution order of main process engines"},
+            {"items", {"type", "string"}},
             {"default", {"EnginePre", "EngineSolve", "EnginePost"}}
-        }},
-        {"sub_engine_parameters_schemas", {
-            {"EnginePre", EnginePre::GetParamSchema()},
-            {"EngineSolve", EngineSolve::GetParamSchema()},
-            {"EnginePost", EnginePost::GetParamSchema()}
         }}
     };
 }
 
-// --- EnginePreGrid ---
-EnginePreGrid::EnginePreGrid(const nlohmann::json& instance_params)
+// --- EnginePre 其他方法实现 ---
+void EnginePre::Initialize()
 {
-    ParamValidation(instance_params);
-    execution_order_ = instance_params["execution_order"].get<std::vector<std::string>>();
-    
-    // Construct modules directly without factory
-    for (const auto& moduleName : execution_order_)
-    {
-        nlohmann::json config;
-        std::string configFileName = moduleName + ".json";
-        std::string baseModuleName = GetBaseName(moduleName);
-        LoadConfig(configFileName, config);
-        
-        subModulesPool[moduleName] = CreateModule(baseModuleName, config);
-    }
+    InitializeSubEngines<EnginePreVariant>(execution_order_, subEnginesPool);
 }
 
-void EnginePreGrid::ParamValidation(const nlohmann::json& params)
+void EnginePre::Execute()
+{
+    ExecuteSubEngines<EnginePreVariant>(execution_order_, subEnginesPool);
+}
+
+void EnginePre::Release()
+{
+    ReleaseSubEngines<EnginePreVariant>(execution_order_, subEnginesPool);
+}
+
+void EnginePre::ParamValidation(const nlohmann::json& params)
 {
     if (!params.contains("execution_order")) {
-        throw std::runtime_error("EnginePreGrid: parameter 'execution_order' is missing.");
+        throw std::runtime_error("EnginePre: 'execution_order' is required.");
     }
     if (!params.at("execution_order").is_array()) {
-        throw std::runtime_error("EnginePreGrid: parameter 'execution_order' must be an array.");
+        throw std::runtime_error("EnginePre: 'execution_order' must be an array.");
     }
 }
 
+nlohmann::json EnginePre::GetParamSchema()
+{
+    return {
+        {"execution_order", {
+            {"type", "array"},
+            {"description", "Execution order of preprocessing sub-engines"},
+            {"items", {"type", "string"}},
+            {"default", {"EnginePreGrid"}}
+        }}
+    };
+}
+
+// --- EngineSolve 其他方法实现 ---
+void EngineSolve::Initialize()
+{
+    InitializeSubEngines<EngineSolveVariant>(execution_order_, subEnginesPool);
+}
+
+void EngineSolve::Execute()
+{
+    ExecuteSubEngines<EngineSolveVariant>(execution_order_, subEnginesPool);
+}
+
+void EngineSolve::Release()
+{
+    ReleaseSubEngines<EngineSolveVariant>(execution_order_, subEnginesPool);
+}
+
+void EngineSolve::ParamValidation(const nlohmann::json& params)
+{
+    if (!params.contains("execution_order")) {
+        throw std::runtime_error("EngineSolve: 'execution_order' is required.");
+    }
+    if (!params.at("execution_order").is_array()) {
+        throw std::runtime_error("EngineSolve: 'execution_order' must be an array.");
+    }
+}
+
+nlohmann::json EngineSolve::GetParamSchema()
+{
+    return {
+        {"execution_order", {
+            {"type", "array"},
+            {"description", "Execution order of solver sub-engines"},
+            {"items", {"type", "string"}},
+            {"default", {"EngineTurbulence"}}
+        }}
+    };
+}
+
+// --- EnginePost 其他方法实现 ---
+void EnginePost::Initialize()
+{
+    InitializeSubEngines<EnginePostVariant>(execution_order_, subEnginesPool);
+}
+
+void EnginePost::Execute()
+{
+    ExecuteSubEngines<EnginePostVariant>(execution_order_, subEnginesPool);
+}
+
+void EnginePost::Release()
+{
+    ReleaseSubEngines<EnginePostVariant>(execution_order_, subEnginesPool);
+}
+
+void EnginePost::ParamValidation(const nlohmann::json& params)
+{
+    if (!params.contains("execution_order")) {
+        throw std::runtime_error("EnginePost: 'execution_order' is required.");
+    }
+    if (!params.at("execution_order").is_array()) {
+        throw std::runtime_error("EnginePost: 'execution_order' must be an array.");
+    }
+}
+
+nlohmann::json EnginePost::GetParamSchema()
+{
+    return {
+        {"execution_order", {
+            {"type", "array"},
+            {"description", "Execution order of postprocessing sub-engines"},
+            {"items", {"type", "string"}},
+            {"default", {"EngineFlowField"}}
+        }}
+    };
+}
+
+// --- EnginePreGrid 其他方法实现 ---
 void EnginePreGrid::Initialize()
 {
     InitializeSubEngines<EnginePreGridVariant>(execution_order_, subModulesPool);
@@ -802,71 +830,29 @@ void EnginePreGrid::Release()
     ReleaseSubEngines<EnginePreGridVariant>(execution_order_, subModulesPool);
 }
 
+void EnginePreGrid::ParamValidation(const nlohmann::json& params)
+{
+    if (!params.contains("execution_order")) {
+        throw std::runtime_error("EnginePreGrid: 'execution_order' is required.");
+    }
+    if (!params.at("execution_order").is_array()) {
+        throw std::runtime_error("EnginePreGrid: 'execution_order' must be an array.");
+    }
+}
+
 nlohmann::json EnginePreGrid::GetParamSchema()
 {
     return {
-        {"description", "PreGrid Engine: executes a list of preprocessing modules in specified order"},
-        {"execution_type", {{"type", "string"}, {"enum", {"sequential_modules", "chooseOne"}}, {"default", "chooseOne"}}},
-        {"execution_order", { 
+        {"execution_order", {
             {"type", "array"},
-            {"description", "Ordered list of module instance keys to execute. Modules are executed in the given order."},
-            {"items", {
-                {"type", "string"},
-                // Enum can list known base types and common reuses for GUI/validation aid
-                {"enum", {"ModulePreCGNS", "ModulePrePlot3D", "ModulePreTecplot", "ModulePreCGNS_1"}} 
-            }},
-            {"default", {"ModulePreCGNS"}} 
-        }},
-        {"module_parameters_schemas", {
-            {"ModulePreCGNS", ModulePreCGNS::GetParamSchema()},
-            {"ModulePrePlot3D", ModulePrePlot3D::GetParamSchema()},
-            {"ModulePreTecplot", ModulePreTecplot::GetParamSchema()},
-            {"ModulePreCGNS_1", ModulePreCGNS::GetParamSchema()} // Example of reused instance schema
+            {"description", "Execution order of preprocessing modules"},
+            {"items", {"type", "string"}},
+            {"default", {"ModulePreCGNS"}}
         }}
     };
 }
 
-EnginePreGridVariant EnginePreGrid::CreateModule(const std::string& module_name, const nlohmann::json& config)
-{
-    if (module_name == "ModulePreCGNS") {
-        return std::make_unique<ModulePreCGNS>(config);
-    } else if (module_name == "ModulePrePlot3D") {
-        return std::make_unique<ModulePrePlot3D>(config);
-    } else if (module_name == "ModulePreTecplot") {
-        return std::make_unique<ModulePreTecplot>(config);
-    } else {
-        throw std::runtime_error("Unknown module name: " + module_name);
-    }
-}
-
-// --- EngineTurbulence ---
-EngineTurbulence::EngineTurbulence(const nlohmann::json& instance_params)
-{
-    ParamValidation(instance_params);
-    execution_order_ = instance_params["execution_order"].get<std::vector<std::string>>();
-    
-    // Construct modules directly without factory
-    for (const auto& moduleName : execution_order_)
-    {
-        nlohmann::json config;
-        std::string configFileName = moduleName + ".json";
-        std::string baseModuleName = GetBaseName(moduleName);
-        LoadConfig(configFileName, config);
-        
-        subModulesPool[moduleName] = CreateModule(baseModuleName, config);
-    }
-}
-
-void EngineTurbulence::ParamValidation(const nlohmann::json& params)
-{
-    if (!params.contains("execution_order")) {
-        throw std::runtime_error("EngineTurbulence: parameter 'execution_order' is missing.");
-    }
-    if (!params.at("execution_order").is_array()) {
-        throw std::runtime_error("EngineTurbulence: parameter 'execution_order' must be an array.");
-    }
-}
-
+// --- EngineTurbulence 其他方法实现 ---
 void EngineTurbulence::Initialize()
 {
     InitializeSubEngines<EngineTurbulenceVariant>(execution_order_, subModulesPool);
@@ -878,122 +864,66 @@ void EngineTurbulence::Execute()
 }
 
 void EngineTurbulence::Release()
-{ 
+{
     ReleaseSubEngines<EngineTurbulenceVariant>(execution_order_, subModulesPool);
+}
+
+void EngineTurbulence::ParamValidation(const nlohmann::json& params)
+{
+    if (!params.contains("execution_order")) {
+        throw std::runtime_error("EngineTurbulence: 'execution_order' is required.");
+    }
+    if (!params.at("execution_order").is_array()) {
+        throw std::runtime_error("EngineTurbulence: 'execution_order' must be an array.");
+    }
 }
 
 nlohmann::json EngineTurbulence::GetParamSchema()
 {
-     return {
-        {"description", "Turbulence Engine: executes a list of turbulence modules in specified order"},
-        {"execution_type", {{"type", "string"}, {"enum", {"sequential_modules", "chooseOne"}}, {"default", "chooseOne"}}},
+    return {
         {"execution_order", {
             {"type", "array"},
-            {"description", "Ordered list of module instance keys to execute for Turbulence."},
-            {"items", {
-                {"type", "string"},
-                {"enum", {"ModuleSA", "ModuleSST", "ModuleSSTWDF", "ModuleSA_1"}}
-            }},
-            {"default", {"ModuleSA"}} 
-        }},
-        {"module_parameters_schemas", {
-            {"ModuleSA", ModuleSA::GetParamSchema()},
-            {"ModuleSST", ModuleSST::GetParamSchema()},
-            {"ModuleSSTWDF", ModuleSSTWDF::GetParamSchema()},
-            {"ModuleSA_1", ModuleSA::GetParamSchema()} // Example of reused instance schema
+            {"description", "Execution order of turbulence modules"},
+            {"items", {"type", "string"}},
+            {"default", {"ModuleSA"}}
         }}
     };
 }
 
-EngineTurbulenceVariant EngineTurbulence::CreateModule(const std::string& module_name, const nlohmann::json& config)
+// --- EngineFlowField 其他方法实现 ---
+void EngineFlowField::Initialize()
 {
-    if (module_name == "ModuleSA") {
-        return std::make_unique<ModuleSA>(config);
-    } else if (module_name == "ModuleSST") {
-        return std::make_unique<ModuleSST>(config);
-    } else if (module_name == "ModuleSSTWDF") {
-        return std::make_unique<ModuleSSTWDF>(config);
-    } else {
-        throw std::runtime_error("Unknown module name: " + module_name);
-    }
+    InitializeSubEngines<EngineFlowFieldVariant>(execution_order_, subModulesPool);
 }
 
-// --- EngineFlowField ---
-EngineFlowField::EngineFlowField(const nlohmann::json& instance_params) 
+void EngineFlowField::Execute()
 {
-    ParamValidation(instance_params);
-    execution_order_ = instance_params["execution_order"].get<std::vector<std::string>>();
-    
-    // Construct modules directly without factory
-    for (const auto& moduleName : execution_order_)
-    {
-        nlohmann::json config;
-        std::string configFileName = moduleName + ".json";
-        std::string baseModuleName = GetBaseName(moduleName);
-        LoadConfig(configFileName, config);
-        
-        subModulesPool[moduleName] = CreateModule(baseModuleName, config);
-    }
+    ExecuteSubEngines<EngineFlowFieldVariant>(execution_order_, subModulesPool);
+}
+
+void EngineFlowField::Release()
+{
+    ReleaseSubEngines<EngineFlowFieldVariant>(execution_order_, subModulesPool);
 }
 
 void EngineFlowField::ParamValidation(const nlohmann::json& params)
 {
     if (!params.contains("execution_order")) {
-        throw std::runtime_error("EngineFlowField: parameter 'execution_order' is missing.");
+        throw std::runtime_error("EngineFlowField: 'execution_order' is required.");
     }
     if (!params.at("execution_order").is_array()) {
-        throw std::runtime_error("EngineFlowField: parameter 'execution_order' must be an array.");
+        throw std::runtime_error("EngineFlowField: 'execution_order' must be an array.");
     }
 }
 
-void EngineFlowField::Initialize() 
-{ 
-    InitializeSubEngines<EngineFlowFieldVariant>(execution_order_, subModulesPool);
-}
-
-void EngineFlowField::Execute() 
-{ 
-    ExecuteSubEngines<EngineFlowFieldVariant>(execution_order_, subModulesPool);
-}
-
-void EngineFlowField::Release() 
-{ 
-    ReleaseSubEngines<EngineFlowFieldVariant>(execution_order_, subModulesPool);
-}
-
-nlohmann::json EngineFlowField::GetParamSchema() 
+nlohmann::json EngineFlowField::GetParamSchema()
 {
     return {
-        {"description", "FlowField Engine: executes a list of postprocessing modules in specified order"},
-        {"execution_type", {{"type", "string"}, {"enum", {"sequential_modules", "sequential"}}, {"default", "sequential_modules"}}}, // Note: "sequential" was also in enum, "sequential_modules" seems more specific.
         {"execution_order", {
             {"type", "array"},
-            {"description", "Ordered list of module instance keys to execute for FlowField."},
-            {"items", {
-                {"type", "string"},
-                {"enum", {"ModulePostCGNS", "ModulePostPlot3D", "ModulePostTecplot", "ModulePostPlot3D_1", "ModulePostPlot3D_2"}}
-            }},
+            {"description", "Execution order of flow field modules"},
+            {"items", {"type", "string"}},
             {"default", {"ModulePostCGNS"}}
-        }},
-        {"module_parameters_schemas", { 
-            {"ModulePostCGNS", ModulePostCGNS::GetParamSchema()},
-            {"ModulePostPlot3D", ModulePostPlot3D::GetParamSchema()},
-            {"ModulePostTecplot", ModulePostTecplot::GetParamSchema()},
-            {"ModulePostPlot3D_1", ModulePostPlot3D::GetParamSchema()}, 
-            {"ModulePostPlot3D_2", ModulePostPlot3D::GetParamSchema()}
         }}
     };
-}
-
-EngineFlowFieldVariant EngineFlowField::CreateModule(const std::string& module_name, const nlohmann::json& config)
-{
-    if (module_name == "ModulePostCGNS") {
-        return std::make_unique<ModulePostCGNS>(config);
-    } else if (module_name == "ModulePostPlot3D") {
-        return std::make_unique<ModulePostPlot3D>(config);
-    } else if (module_name == "ModulePostTecplot") {
-        return std::make_unique<ModulePostTecplot>(config);
-    } else {
-        throw std::runtime_error("Unknown module name: " + module_name);
-    }
 }
