@@ -16,23 +16,26 @@ ParaConfig是一个灵活的配置管理系统，用于管理复杂的CFD工作�
 
 ## 系统架构
 
-```
-EngineMainProcess (主进程引擎)
-├── EnginePre (预处理引擎)
-│   └── EnginePreGrid (网格预处理引擎)
-│       ├── ModulePreCGNS (CGNS预处理模块)
-│       ├── ModulePrePlot3D (Plot3D预处理模块)
-│       └── ModulePreTecplot (Tecplot预处理模块)
-├── EngineSolve (求解引擎)
-│   └── EngineTurbulence (湍流引擎)
-│       ├── ModuleSA (Spalart-Allmaras模型)
-│       ├── ModuleSST (SST k-ω模型)
-│       └── ModuleSSTWDF (SST壁面阻尼函数模型)
-└── EnginePost (后处理引擎)
-    └── EngineFlowField (流场引擎)
-        ├── ModulePostCGNS (CGNS后处理模块)
-        ├── ModulePostPlot3D (Plot3D后处理模块)
-        └── ModulePostTecplot (Tecplot后处理模块)
+```mermaid
+graph TD
+    A[EngineMainProcess 主进程引擎]
+    A --> B[EnginePre 预处理引擎]
+    B --> B1[EnginePreGrid 网格预处理引擎]
+    B1 --> B11[ModulePreCGNS CGNS预处理模块]
+    B1 --> B12[ModulePrePlot3D Plot3D预处理模块]
+    B1 --> B13[ModulePreTecplot Tecplot预处理模块]
+
+    A --> C[EngineSolve 求解引擎]
+    C --> C1[EngineTurbulence 湍流引擎]
+    C1 --> C11[ModuleSA Spalart-Allmaras模型]
+    C1 --> C12[ModuleSST SST k-ω模型]
+    C1 --> C13[ModuleSSTWDF SST壁面阻尼函数模型]
+
+    A --> D[EnginePost 后处理引擎]
+    D --> D1[EngineFlowField 流场引擎]
+    D1 --> D11[ModulePostCGNS CGNS后处理模块]
+    D1 --> D12[ModulePostPlot3D Plot3D后处理模块]
+    D1 --> D13[ModulePostTecplot Tecplot后处理模块]
 ```
 
 ## 程序执行流程图
